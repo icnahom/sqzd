@@ -2,6 +2,10 @@
 
 > 🍋 **Why "sqzd"?**. Just like squeezing a piece of fruit to get the pure juice while leaving the rind behind, sqzd takes bloated videos and extracts only the concentrated, high-value information 
 
+
+https://github.com/user-attachments/assets/5a4439b4-ed05-4a95-9427-307af734a32e
+
+
 **sqzd** is a hands-free YouTube wrapper that extracts high-signal moments from long videos. Instead of reading long summaries or manually scrubbing through timelines, sqzd does the work for you—automatically skipping the filler so you can watch just the gold.
 
 ## ✨ Features
