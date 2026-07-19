@@ -139,6 +139,46 @@ class BackgroundAudioHandler extends BaseAudioHandler {
   Future<void> seek(Duration position) async => onSeekAction?.call(position);
 }
 
+class Highlight {
+  final String title;
+  final double start;
+  final double end;
+
+  Highlight({
+    required this.title,
+    required this.start,
+    required this.end,
+  });
+
+  Highlight copyWith({
+    String? title,
+    double? start,
+    double? end,
+  }) {
+    return Highlight(
+      title: title ?? this.title,
+      start: start ?? this.start,
+      end: end ?? this.end,
+    );
+  }
+
+  factory Highlight.fromJson(Map<String, dynamic> json) {
+    return Highlight(
+      title: json['title'] as String? ?? '',
+      start: (json['start'] as num?)?.toDouble() ?? 0.0,
+      end: (json['end'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'start': start,
+      'end': end,
+    };
+  }
+}
+
 class AppState extends ChangeNotifier {
   static const String _geminiBaseUrl =
       'https://generativelanguage.googleapis.com/v1beta';
@@ -170,7 +210,7 @@ class AppState extends ChangeNotifier {
   bool isAppInBackground = false;
 
   String? currentVideoId;
-  List<Map<String, dynamic>> extractedHighlights = [];
+  List<Highlight> extractedHighlights = [];
   int currentHighlightIndex = 0;
 
   double totalOriginalDuration = 0;
@@ -238,10 +278,9 @@ class AppState extends ChangeNotifier {
           _playVideo();
         }
 
-        final {'start': num startRaw} =
-            extractedHighlights[currentHighlightIndex];
+        final highlight = extractedHighlights[currentHighlightIndex];
         final targetVideoTime =
-            startRaw.toDouble() + (position.inMilliseconds / 1000.0);
+            highlight.start + (position.inMilliseconds / 1000.0);
 
         _resumeWebviewAndExecute(() {
           executeVideoJavascript("v.currentTime = $targetVideoTime;");
@@ -286,9 +325,8 @@ class AppState extends ChangeNotifier {
 
     var position = Duration.zero;
     if (extractedHighlights.isNotEmpty) {
-      final {'start': num startRaw} =
-          extractedHighlights[currentHighlightIndex];
-      final posSec = math.max(0.0, currentVideoTime - startRaw.toDouble());
+      final highlight = extractedHighlights[currentHighlightIndex];
+      final posSec = math.max(0.0, currentVideoTime - highlight.start);
       position = Duration(milliseconds: (posSec * 1000).toInt());
     }
 
@@ -317,16 +355,15 @@ class AppState extends ChangeNotifier {
   void _updateAudioMediaItem() {
     if (extractedHighlights.isEmpty) return;
 
-    final {'start': num startRaw, 'end': num endRaw, 'title': String? title} =
-        extractedHighlights[currentHighlightIndex];
+    final highlight = extractedHighlights[currentHighlightIndex];
     final duration = Duration(
-      milliseconds: ((endRaw.toDouble() - startRaw.toDouble()) * 1000).toInt(),
+      milliseconds: ((highlight.end - highlight.start) * 1000).toInt(),
     );
 
     audioHandler.mediaItem.add(
       MediaItem(
         id: currentVideoId ?? 'sqzd',
-        title: title ?? 'Highlight ${currentHighlightIndex + 1}',
+        title: highlight.title.isNotEmpty ? highlight.title : 'Highlight ${currentHighlightIndex + 1}',
         artist:
             'Highlight ${currentHighlightIndex + 1} of ${extractedHighlights.length}',
         duration: duration,
@@ -444,17 +481,13 @@ class AppState extends ChangeNotifier {
       }
 
       if (extractedHighlights.isNotEmpty && !_isHandlingSkip) {
-        if (extractedHighlights[currentHighlightIndex] case {
-          'start': num start,
-          'end': num end,
-        }) {
-          final triggerTime = (end - 0.2) <= start
-              ? end.toDouble()
-              : end.toDouble() - 0.2;
+        final highlight = extractedHighlights[currentHighlightIndex];
+        final triggerTime = (highlight.end - 0.2) <= highlight.start
+            ? highlight.end
+            : highlight.end - 0.2;
 
-          if (time >= triggerTime && time > start) {
-            handleHighlightEnded(currentHighlightIndex);
-          }
+        if (time >= triggerTime && time > highlight.start) {
+          handleHighlightEnded(currentHighlightIndex);
         }
       }
     }
@@ -494,9 +527,8 @@ class AppState extends ChangeNotifier {
     _isHandlingSkip = false;
 
     currentHighlightIndex = index;
-    final {'start': num startRaw, 'title': String? title} =
-        extractedHighlights[index];
-    currentVideoTime = startRaw.toDouble();
+    final highlight = extractedHighlights[index];
+    currentVideoTime = highlight.start;
     notifyListeners();
 
     _updateAudioMediaItem();
@@ -505,7 +537,7 @@ class AppState extends ChangeNotifier {
 
     executeVideoJavascript("""
         v.pause(); 
-        v.currentTime = $startRaw; 
+        v.currentTime = ${highlight.start}; 
         v.volume = 1.0; 
     """, setIntent: true);
 
@@ -513,8 +545,9 @@ class AppState extends ChangeNotifier {
       await _playTransitionSfx();
     }
 
-    final ttsText =
-        title ?? 'Highlight ${index + 1} of ${extractedHighlights.length}.';
+    final ttsText = highlight.title.isNotEmpty
+        ? highlight.title
+        : 'Highlight ${index + 1} of ${extractedHighlights.length}.';
 
     if (isTtsEnabled && highlightEnded) {
       _isTtsPlaying = true;
@@ -574,8 +607,13 @@ class AppState extends ChangeNotifier {
 
         highlightDensity = cachedScale;
         totalOriginalDuration = duration.toDouble();
+        
+        final parsed = (highlights)
+            .map((h) => Highlight.fromJson(Map<String, dynamic>.from(h)))
+            .toList();
+
         _applyHighlights(
-          List<Map<String, dynamic>>.from(highlights),
+          parsed,
           autoplay: false,
           onSuccess: onSuccess,
         );
@@ -809,9 +847,7 @@ class AppState extends ChangeNotifier {
 
     double totalHighlightDuration = 0;
     for (final h in extractedHighlights) {
-      final start = (h['start'] as num).toDouble();
-      final end = (h['end'] as num).toDouble();
-      totalHighlightDuration += (end - start);
+      totalHighlightDuration += (h.end - h.start);
     }
 
     final savedSeconds = totalOriginalDuration - totalHighlightDuration;
@@ -1016,24 +1052,23 @@ end: Exact concluding time in seconds
         );
       }
 
-      final parsedHighlights = List<Map<String, dynamic>>.from(
-        jsonDecode(highlightsJson)['highlights'],
-      );
+      final parsedHighlights = (jsonDecode(highlightsJson)['highlights'] as List)
+          .map((h) => Highlight.fromJson(Map<String, dynamic>.from(h)))
+          .toList();
 
-      parsedHighlights.sort(
-        (a, b) => (a['start'] as num).compareTo(b['start'] as num),
-      );
+      parsedHighlights.sort((a, b) => a.start.compareTo(b.start));
 
       for (var i = 1; i < parsedHighlights.length; i++) {
-        final {'start': num currStart, 'end': num currEnd} =
-            parsedHighlights[i];
-        final {'end': num prevEnd} = parsedHighlights[i - 1];
+        final curr = parsedHighlights[i];
+        final prev = parsedHighlights[i - 1];
 
-        if (currStart <= prevEnd) {
-          parsedHighlights[i]['start'] = prevEnd + 1;
-          if (currEnd <= parsedHighlights[i]['start']) {
-            parsedHighlights[i]['end'] = parsedHighlights[i]['start'] + 15;
+        if (curr.start <= prev.end) {
+          var newStart = prev.end + 1.0;
+          var newEnd = curr.end;
+          if (newEnd <= newStart) {
+            newEnd = newStart + 15.0;
           }
+          parsedHighlights[i] = curr.copyWith(start: newStart, end: newEnd);
         }
       }
 
@@ -1043,7 +1078,7 @@ end: Exact concluding time in seconds
           "timestamp": DateTime.now().millisecondsSinceEpoch,
           "duration": totalOriginalDuration,
           "scale": highlightDensity,
-          "highlights": parsedHighlights,
+          "highlights": parsedHighlights.map((h) => h.toJson()).toList(),
         }),
       );
 
@@ -1084,14 +1119,14 @@ end: Exact concluding time in seconds
   }
 
   void _applyHighlights(
-    List<Map<String, dynamic>> highlights, {
+    List<Highlight> highlights, {
     bool autoplay = true,
     VoidCallback? onSuccess,
   }) {
     extractedHighlights = highlights;
     currentHighlightIndex = 0;
     currentVideoTime = highlights.isNotEmpty
-        ? (highlights.first['start'] as num).toDouble()
+        ? highlights.first.start
         : 0.0;
 
     isProcessing = false;
@@ -1128,7 +1163,7 @@ end: Exact concluding time in seconds
     if (autoplay) {
       seekToHighlight(0);
     } else {
-      final {'start': num startRaw} = extractedHighlights[0];
+      final startRaw = extractedHighlights[0].start;
       executeVideoJavascript(
         "v.pause(); v.currentTime = $startRaw; v.volume = 1.0;",
       );
@@ -1138,7 +1173,7 @@ end: Exact concluding time in seconds
 
 class HighlightsTimelinePainter extends CustomPainter {
   final double totalDuration;
-  final List<Map<String, dynamic>> highlights;
+  final List<Highlight> highlights;
   final int currentIndex;
   final double currentProgress;
   final Color primaryColor;
@@ -1172,17 +1207,16 @@ class HighlightsTimelinePainter extends CustomPainter {
     final bgPaint = createPaint(backgroundColor);
     canvas.drawLine(Offset(0, lineY), Offset(size.width, lineY), bgPaint);
 
-    final {'start': num actStartRaw, 'end': num actEndRaw} =
-        highlights[currentIndex];
-    final activeStart = actStartRaw.toDouble();
-    final activeEnd = actEndRaw.toDouble();
+    final activeHighlight = highlights[currentIndex];
+    final activeStart = activeHighlight.start;
+    final activeEnd = activeHighlight.end;
     var activeDur = activeEnd - activeStart;
     if (activeDur <= 0) activeDur = 1.0;
 
     var effectiveTotalDur = totalDuration;
-    final {'end': num lastEndRaw} = highlights.last;
+    final lastEndRaw = highlights.last.end;
     if (lastEndRaw > effectiveTotalDur) {
-      effectiveTotalDur = lastEndRaw.toDouble();
+      effectiveTotalDur = lastEndRaw;
     }
     if (effectiveTotalDur <= 0) effectiveTotalDur = 1.0;
 
@@ -1209,9 +1243,9 @@ class HighlightsTimelinePainter extends CustomPainter {
     }
 
     for (var i = 0; i < highlights.length; i++) {
-      final {'start': num startRaw, 'end': num startEnd} = highlights[i];
-      final startX = timeToX(startRaw.toDouble());
-      final endX = timeToX(startEnd.toDouble());
+      final h = highlights[i];
+      final startX = timeToX(h.start);
+      final endX = timeToX(h.end);
 
       final pad = pillThickness / 2;
       final drawStartX = startX + pad;
@@ -2063,14 +2097,10 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                       itemBuilder: (context, i) {
                         final isActive = state.currentHighlightIndex == i;
 
-                        final {
-                          'start': num startRaw,
-                          'end': num endRaw,
-                          'title': String title,
-                        } = state.extractedHighlights[i];
-
-                        final startStr = _formatDuration(startRaw);
-                        final endStr = _formatDuration(endRaw);
+                        final highlight = state.extractedHighlights[i];
+                        final startStr = _formatDuration(highlight.start);
+                        final endStr = _formatDuration(highlight.end);
+                        final title = highlight.title;
 
                         return GestureDetector(
                           onTap: () {
@@ -2201,13 +2231,10 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
     }
 
     final highlightStart = state.extractedHighlights.isNotEmpty
-        ? (state.extractedHighlights[state.currentHighlightIndex]['start']
-                  as num)
-              .toDouble()
+        ? state.extractedHighlights[state.currentHighlightIndex].start
         : 0.0;
     final highlightEnd = state.extractedHighlights.isNotEmpty
-        ? (state.extractedHighlights[state.currentHighlightIndex]['end'] as num)
-              .toDouble()
+        ? state.extractedHighlights[state.currentHighlightIndex].end
         : 1.0;
 
     var highlightProgress = (highlightEnd - highlightStart) > 0
@@ -2492,7 +2519,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                                             children: [
                                               Text(
                                                 state
-                                                    .extractedHighlights[index]['title'],
+                                                    .extractedHighlights[index].title,
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: const TextStyle(
