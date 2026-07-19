@@ -1,0 +1,35 @@
+name: sqzd
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.10.0-75.1.beta
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.1
+  flutter_inappwebview: ^6.0.0
+  shared_preferences: ^2.2.2
+  flutter_secure_storage: ^9.2.2
+  receive_sharing_intent: ^1.8.0 # Using the new unified v1.8+ API
+  http: ^1.3.0
+  path_provider: ^2.1.2
+  flutter_cache_manager: ^3.4.1
+  flutter_soloud: ^3.5.4
+  crypto: ^3.0.3
+  audio_session: ^0.2.4
+  audio_service: ^0.18.17
+  url_launcher: ^6.3.2
+  flutter_local_notifications: ^20.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sfx/
