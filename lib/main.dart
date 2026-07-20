@@ -144,17 +144,9 @@ class Highlight {
   final double start;
   final double end;
 
-  Highlight({
-    required this.title,
-    required this.start,
-    required this.end,
-  });
+  Highlight({required this.title, required this.start, required this.end});
 
-  Highlight copyWith({
-    String? title,
-    double? start,
-    double? end,
-  }) {
+  Highlight copyWith({String? title, double? start, double? end}) {
     return Highlight(
       title: title ?? this.title,
       start: start ?? this.start,
@@ -171,11 +163,7 @@ class Highlight {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'title': title,
-      'start': start,
-      'end': end,
-    };
+    return {'title': title, 'start': start, 'end': end};
   }
 }
 
@@ -363,7 +351,9 @@ class AppState extends ChangeNotifier {
     audioHandler.mediaItem.add(
       MediaItem(
         id: currentVideoId ?? 'sqzd',
-        title: highlight.title.isNotEmpty ? highlight.title : 'Highlight ${currentHighlightIndex + 1}',
+        title: highlight.title.isNotEmpty
+            ? highlight.title
+            : 'Highlight ${currentHighlightIndex + 1}',
         artist:
             'Highlight ${currentHighlightIndex + 1} of ${extractedHighlights.length}',
         duration: duration,
@@ -607,16 +597,12 @@ class AppState extends ChangeNotifier {
 
         highlightDensity = cachedScale;
         totalOriginalDuration = duration.toDouble();
-        
+
         final parsed = (highlights)
             .map((h) => Highlight.fromJson(Map<String, dynamic>.from(h)))
             .toList();
 
-        _applyHighlights(
-          parsed,
-          autoplay: false,
-          onSuccess: onSuccess,
-        );
+        _applyHighlights(parsed, autoplay: false, onSuccess: onSuccess);
         return true;
       }
     }
@@ -690,7 +676,26 @@ class AppState extends ChangeNotifier {
       'contents': [
         {
           'parts': [
-            {'text': "Read this in a fast, engaging tone: '$text'"},
+            {
+              'text':
+                  """
+Read the following transcript based on the audio profile and director's note.
+# Audio Profile
+An authoritative main news anchor.
+
+# Director's note
+Style: Vocal Smile. Pace: Rapid Fire. Accent: American (Gen).
+
+## Scene:
+A high-quality recording studio, talking casually into dynamic mics.
+
+## Sample Context:
+Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversational, and warm.
+
+## Transcript:
+[enthusiastic] $text
+""",
+            },
           ],
         },
       ],
@@ -882,7 +887,9 @@ class AppState extends ChangeNotifier {
   AudioSource? _successSfxSource;
   Future<void> _playSuccessSfx() async {
     try {
-      _successSfxSource ??= await soLoud.loadAsset('assets/sfx/36505577-smooth-completed-notify-274735.mp3');
+      _successSfxSource ??= await soLoud.loadAsset(
+        'assets/sfx/36505577-smooth-completed-notify-274735.mp3',
+      );
       await soLoud.play(_successSfxSource!, volume: 0.5);
     } catch (e) {
       debugPrint("Success SFX Error: $e");
@@ -1052,9 +1059,10 @@ end: Exact concluding time in seconds
         );
       }
 
-      final parsedHighlights = (jsonDecode(highlightsJson)['highlights'] as List)
-          .map((h) => Highlight.fromJson(Map<String, dynamic>.from(h)))
-          .toList();
+      final parsedHighlights =
+          (jsonDecode(highlightsJson)['highlights'] as List)
+              .map((h) => Highlight.fromJson(Map<String, dynamic>.from(h)))
+              .toList();
 
       parsedHighlights.sort((a, b) => a.start.compareTo(b.start));
 
@@ -1125,9 +1133,7 @@ end: Exact concluding time in seconds
   }) {
     extractedHighlights = highlights;
     currentHighlightIndex = 0;
-    currentVideoTime = highlights.isNotEmpty
-        ? highlights.first.start
-        : 0.0;
+    currentVideoTime = highlights.isNotEmpty ? highlights.first.start : 0.0;
 
     isProcessing = false;
     notifyListeners();
@@ -2519,7 +2525,8 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                                             children: [
                                               Text(
                                                 state
-                                                    .extractedHighlights[index].title,
+                                                    .extractedHighlights[index]
+                                                    .title,
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: const TextStyle(
