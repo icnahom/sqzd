@@ -54,10 +54,9 @@ We do not use unofficial web-scraping tricks to fetch video transcripts. Instead
 
 ## ⚖️ License
 
-This project is licensed under the **PolyForm Noncommercial License 1.0.0**. 
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
 
-You are free to view, fork, modify, and use this software for personal, educational, 
-and non-commercial purposes. **Commercial use, including publishing this application 
-to any app store for profit, or using it within a commercial business, is strictly prohibited.**
+You are free to copy, modify, and distribute this software under the terms of the AGPL-3.0. Please note that if you modify this app and distribute it, you must make your modified source code publicly available under the exact same AGPL-3.0 license.
 
-For commercial licensing inquiries, please contact me directly.
+For complete terms and conditions, please refer to the [LICENSE](LICENSE) file in the repository.
+```
