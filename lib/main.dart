@@ -383,7 +383,7 @@ class AppState extends ChangeNotifier {
 
     try {
       final res = await http.get(
-        Uri.parse('$_geminiBaseUrl/models?key=$geminiApiKey'),
+        Uri.parse('$_geminiBaseUrl/models?key=$geminiApiKey&pageSize=100'),
       );
       final jsonResponse = jsonDecode(res.body);
 
