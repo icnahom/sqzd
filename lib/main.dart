@@ -947,9 +947,9 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
       }
       
       final scaleText = switch (highlightDensity) {
-        1 => "Ruthlessly Selective (Short Reel): Extract only the absolute peak moments. Apply a 10/10 filter. I want only the most profound or critical standalone clips. Leave out everything else.",
-        2 => "Balanced Narrative (Medium Reel): Extract the core story. Select the primary thesis points and key supporting examples. Cut the fluff, but keep enough clips to provide a complete, well-paced summary.",
-        _ => "Comprehensive Deep-Dive (Long Reel): Err on the side of inclusion. Extract all main arguments, valuable nuances, compelling anecdotes, and detailed explanations. If a moment adds depth, context, or entertainment, include it.",
+        1 => "Ruthlessly Selective: Extract only the absolute peak moments. Apply a 10/10 filter. I want only the most profound or critical standalone clips. Leave out everything else.",
+        2 => "Balanced Narrative: Extract the core story. Select the primary thesis points and key supporting examples. Cut the fluff, but keep enough clips to provide a complete, well-paced summary.",
+        _ => "Comprehensive Deep-Dive: Err on the side of inclusion. Extract all main arguments, valuable nuances, compelling anecdotes, and detailed explanations. If a moment adds depth, context, or entertainment, include it.",
       };
 
       final prompt =
@@ -959,19 +959,10 @@ You are a master video editor curating a highlight reel.
 Extract isolated, standalone highlight clips from this video. Do not create a continuous table of contents; pinpoint specific moments of peak value.
 
 Rules for Extraction:
-1. Pacing & Volume: $scaleText
-2. Trimming: Start the clip exactly when the core insight begins, and cut exactly when the point concludes. 
-3. Purity: Skip all intros, sponsor reads, rambling, and conversational filler.
-4. Coverage (STRICT): You MUST find clips from the beginning, middle, and end of the video.
-
-Output ONLY a valid JSON array of objects with no additional text or formatting. Use this exact structure:
-[
-  {
-    "title": "Punchy 3-5 word title",
-    "start": 125,
-    "end": 180,
-  }
-]
+1, Full Timeline Coverage: Ensure selections are drawn from across the entire video.
+2. Pacing & Volume: $scaleText
+3. Trimming: Start the clip exactly when the core insight begins, and cut exactly when the point concludes. 
+4. Purity: Skip all intros, sponsor reads, rambling, and conversational filler.
 """;
       notifyListeners();
 
@@ -1022,9 +1013,9 @@ Output ONLY a valid JSON array of objects with no additional text or formatting.
                   "items": {
                     "type": "OBJECT",
                     "properties": {
-                      "title": {"type": "STRING"},
-                      "start": {"type": "INTEGER"},
-                      "end": {"type": "INTEGER"},
+                      "title": {"type": "STRING", "description": "Punchy 3-5 word title for the highlight clip."},
+                      "start": {"type": "INTEGER", "description": "Start time of the highlight clip in seconds."},
+                      "end": {"type": "INTEGER", "description": "End time of the highlight clip in seconds."},
                     },
                     "required": ["title", "start", "end"],
                   },
