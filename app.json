@@ -1,0 +1,17 @@
+{
+  "name": "sqzd",
+  "identifier": "com.example.sqzd",
+  "apps": [
+    {
+      "name": "sqzd",
+      "bundleIdentifier": "com.example.sqzd",
+      "developerName": "Nahom W.",
+      "version": "1.0.0",
+      "versionDate": "2026-07-21T00:00:00-00:00",
+      "localizedDescription": "sqzd is a YouTube wrapper that extracts high-signal moments.",
+      "iconURL": "https://raw.githubusercontent.com/icnahom/sqzd/main/assets/AppIcon~ios-marketing.png",
+      "downloadURL": "https://github.com/icnahom/sqzd/releases/download/v1.0.0/app.ipa",
+      "size": 15000000
+    }
+  ]
+}
