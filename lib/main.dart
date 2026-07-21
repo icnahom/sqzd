@@ -945,31 +945,33 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         notifyListeners();
         return;
       }
-      final scale = switch (highlightDensity) {
-        1 => '3-5',
-        2 => '7-10',
-        _ => 'all',
+      
+      final scaleText = switch (highlightDensity) {
+        1 => "Ruthlessly Selective (Short Reel): Extract only the absolute peak moments. Apply a 10/10 filter. I want only the most profound or critical standalone clips. Leave out everything else.",
+        2 => "Balanced Narrative (Medium Reel): Extract the core story. Select the primary thesis points and key supporting examples. Cut the fluff, but keep enough clips to provide a complete, well-paced summary.",
+        _ => "Comprehensive Deep-Dive (Long Reel): Err on the side of inclusion. Extract all main arguments, valuable nuances, compelling anecdotes, and detailed explanations. If a moment adds depth, context, or entertainment, include it.",
       };
-
-      final scaleText =
-          "Extract $scale key moments as distinct clips from the very first minute to the very last second, naturally omitting filler in between.";
 
       final prompt =
           """
 You are a master video editor curating a highlight reel. 
 
-Your goal is to extract the exact moments of peak value from this video. Do not create a continuous table of contents. Instead, pinpoint specific, isolated clips where the most important points are made. 
+Extract isolated, standalone highlight clips from this video. Do not create a continuous table of contents; pinpoint specific moments of peak value.
 
-Review the video in its entirety before making your cuts. It is crucial that your final reel captures the full arc of the content. Ensure your selections are drawn from the start, middle, and end of the timeline.
+Rules for Extraction:
+1. Pacing & Volume: $scaleText
+2. Trimming: Start the clip exactly when the core insight begins, and cut exactly when the point concludes. 
+3. Purity: Skip all intros, sponsor reads, rambling, and conversational filler.
+4. Coverage (STRICT): You MUST find clips from the beginning, middle, and end of the video.
 
-Start each clip right as the core insight begins, and cut it the exact moment the point is concluded. Skip all intros, sponsor reads, rambling, and conversational filler.
-
-Important: $scaleText
-
-For each curated clip, output a structured JSON array of objects with:
-title: A punchy 3-5 word title
-start: Exact beginning time in seconds
-end: Exact concluding time in seconds
+Output ONLY a valid JSON array of objects with no additional text or formatting. Use this exact structure:
+[
+  {
+    "title": "Punchy 3-5 word title",
+    "start": 125,
+    "end": 180,
+  }
+]
 """;
       notifyListeners();
 
