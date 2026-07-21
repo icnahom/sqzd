@@ -8,7 +8,9 @@ on:
 jobs:
   build:
     runs-on: macos-latest # Required for building iOS
-
+    permissions:
+      contents: write  # Required to create releases
+      
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
