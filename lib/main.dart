@@ -1649,19 +1649,19 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
     if (state == AppLifecycleState.resumed) {
       appState.isAppInBackground = false;
       appState.webViewController?.resume();
-    } else if (state
-        case AppLifecycleState.paused ||
-            AppLifecycleState.inactive ||
-            AppLifecycleState.hidden) {
+
+      // Restore video rendering when user opens the app back up
+      appState.executeVideoJavascript("if(v) v.style.display = '';");
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused) {
+      if (!appState.isAppInBackground) {
         appState.isAppInBackground = true;
-      if (appState.isVideoPlaying || appState.isTtsPlaying) {
-        Future.delayed(const Duration(milliseconds: 200), () {
-          appState.webViewController?.resume();
-          appState.executeVideoJavascript(
-            "if(v.paused) { v.play().catch(e => console.log(e)); }",
-            setIntent: true,
-          );
-        });
+
+        // Hide the <video> element CSS immediately. This tells Chromium to release
+        // the hardware video display surface BEFORE Android destroys it,
+        // preventing the 20-second MediaCodec decoder stall.
+        appState.executeVideoJavascript("if(v) v.style.display = 'none';");
       }
     }
   }
