@@ -198,6 +198,7 @@ class AppState extends ChangeNotifier {
   bool isAppInBackground = false;
 
   String? currentVideoId;
+  String? currentVideoTitle;
   List<Highlight> extractedHighlights = [];
   int currentHighlightIndex = 0;
 
@@ -260,23 +261,25 @@ class AppState extends ChangeNotifier {
       }
     });
     audioHandler.onSeekAction = (position) {
-      if (extractedHighlights.isNotEmpty) {
-        if (_isTtsPlaying) {
-          stopTtsAudio();
-          _playVideo();
-        }
-
-        final highlight = extractedHighlights[currentHighlightIndex];
-        final targetVideoTime =
-            highlight.start + (position.inMilliseconds / 1000.0);
-
-        _resumeWebviewAndExecute(() {
-          executeVideoJavascript("v.currentTime = $targetVideoTime;");
-          currentVideoTime = targetVideoTime;
-          notifyListeners();
-          _updateAudioPlaybackState();
-        });
+      if (_isTtsPlaying) {
+        stopTtsAudio();
+        _playVideo();
       }
+
+      double targetVideoTime;
+      if (extractedHighlights.isNotEmpty) {
+        final highlight = extractedHighlights[currentHighlightIndex];
+        targetVideoTime = highlight.start + (position.inMilliseconds / 1000.0);
+      } else {
+        targetVideoTime = position.inMilliseconds / 1000.0;
+      }
+
+      _resumeWebviewAndExecute(() {
+        executeVideoJavascript("v.currentTime = $targetVideoTime;");
+        currentVideoTime = targetVideoTime;
+        notifyListeners();
+        _updateAudioPlaybackState();
+      });
     };
   }
 
@@ -299,16 +302,6 @@ class AppState extends ChangeNotifier {
   }
 
   void _updateAudioPlaybackState() {
-    if (extractedHighlights.isEmpty) {
-      audioHandler.playbackState.add(
-        PlaybackState(
-          processingState: AudioProcessingState.idle,
-          playing: false,
-        ),
-      );
-      return;
-    }
-
     final isPlaying = isVideoPlaying || _isTtsPlaying;
 
     var position = Duration.zero;
@@ -316,6 +309,8 @@ class AppState extends ChangeNotifier {
       final highlight = extractedHighlights[currentHighlightIndex];
       final posSec = math.max(0.0, currentVideoTime - highlight.start);
       position = Duration(milliseconds: (posSec * 1000).toInt());
+    } else {
+      position = Duration(milliseconds: (currentVideoTime * 1000).toInt());
     }
 
     audioHandler.playbackState.add(
@@ -341,7 +336,24 @@ class AppState extends ChangeNotifier {
   }
 
   void _updateAudioMediaItem() {
-    if (extractedHighlights.isEmpty) return;
+    if (extractedHighlights.isEmpty) {
+      final title = (currentVideoTitle != null && currentVideoTitle!.isNotEmpty)
+          ? currentVideoTitle!
+          : 'YouTube Video';
+      final duration = totalOriginalDuration > 0
+          ? Duration(milliseconds: (totalOriginalDuration * 1000).toInt())
+          : null;
+
+      audioHandler.mediaItem.add(
+        MediaItem(
+          id: currentVideoId ?? 'youtube_base',
+          title: title,
+          artist: 'sqzd',
+          duration: duration,
+        ),
+      );
+      return;
+    }
 
     final highlight = extractedHighlights[currentHighlightIndex];
     final duration = Duration(
@@ -359,6 +371,52 @@ class AppState extends ChangeNotifier {
         duration: duration,
       ),
     );
+  }
+
+  Future<void> fetchVideoMetadata() async {
+    if (webViewController == null) return;
+
+    try {
+      final jsResult = await webViewController?.evaluateJavascript(
+        source: """
+          (function() {
+            var v = document.getElementsByTagName('video')[0];
+            var titleMeta = document.querySelector('meta[property="og:title"]');
+            var title = titleMeta ? titleMeta.content : document.title;
+            return {
+              title: title || '',
+              duration: v && !isNaN(v.duration) ? v.duration : 0
+            };
+          })();
+        """,
+      );
+
+      if (jsResult case {'title': String rawTitle, 'duration': num rawDur}) {
+        bool needsUpdate = false;
+
+        if (rawTitle.isNotEmpty) {
+          final cleanedTitle = rawTitle
+              .replaceAll(RegExp(r'\s*-\s*YouTube$', caseSensitive: false), '')
+              .trim();
+          if (cleanedTitle.isNotEmpty && cleanedTitle != currentVideoTitle) {
+            currentVideoTitle = cleanedTitle;
+            needsUpdate = true;
+          }
+        }
+
+        if (rawDur > 0 && rawDur.toDouble() != totalOriginalDuration) {
+          totalOriginalDuration = rawDur.toDouble();
+          needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+          _updateAudioMediaItem();
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching video metadata: $e");
+    }
   }
 
   Future<void> saveApiKey(String key) async {
@@ -456,6 +514,10 @@ class AppState extends ChangeNotifier {
     if (isVideoPlaying != playing) {
       isVideoPlaying = playing;
       notifyListeners();
+
+      if (playing) {
+        _updateAudioMediaItem();
+      }
       _updateAudioPlaybackState();
     }
   }
@@ -465,6 +527,10 @@ class AppState extends ChangeNotifier {
       final oldTime = currentVideoTime;
       currentVideoTime = time;
       notifyListeners();
+
+      if (currentVideoTitle == null || totalOriginalDuration <= 0) {
+        fetchVideoMetadata();
+      }
 
       if ((time - oldTime).abs() > 2.0 && isVideoPlaying) {
         _updateAudioPlaybackState();
@@ -567,10 +633,10 @@ class AppState extends ChangeNotifier {
     currentHighlightIndex = 0;
     currentVideoTime = 0.0;
     totalOriginalDuration = 0;
+    currentVideoTitle = null;
 
-    audioHandler.playbackState.add(
-      PlaybackState(processingState: AudioProcessingState.idle, playing: false),
-    );
+    _updateAudioMediaItem();
+    _updateAudioPlaybackState();
 
     notifyListeners();
   }
@@ -896,14 +962,6 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
     }
   }
 
-  Future<void> _fetchTotalOriginalDuration() async {
-    final durationJS = await webViewController?.evaluateJavascript(
-      source:
-          "document.getElementsByTagName('video')[0] ? document.getElementsByTagName('video')[0].duration : 0",
-    );
-    totalOriginalDuration = (durationJS is num) ? durationJS.toDouble() : 0.0;
-  }
-
   Future<void> generateHighlights(
     String videoUrl, {
     bool forceRegenerate = false,
@@ -933,7 +991,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
     notifyListeners();
 
     try {
-      await _fetchTotalOriginalDuration();
+      await fetchVideoMetadata();
 
       if (!forceRegenerate &&
           loadCachedHighlights(
@@ -945,11 +1003,14 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         notifyListeners();
         return;
       }
-      
+
       final scaleText = switch (highlightDensity) {
-        1 => "Ruthlessly Selective: Extract only the absolute peak moments. Apply a 10/10 filter. I want only the most profound or critical standalone clips. Leave out everything else.",
-        2 => "Balanced Narrative: Extract the core story. Select the primary thesis points and key supporting examples. Cut the fluff, but keep enough clips to provide a complete, well-paced summary.",
-        _ => "Comprehensive Deep-Dive: Err on the side of inclusion. Extract all main arguments, valuable nuances, compelling anecdotes, and detailed explanations. If a moment adds depth, context, or entertainment, include it.",
+        1 =>
+          "Ruthlessly Selective: Extract only the absolute peak moments. Apply a 10/10 filter. I want only the most profound or critical standalone clips. Leave out everything else.",
+        2 =>
+          "Balanced Narrative: Extract the core story. Select the primary thesis points and key supporting examples. Cut the fluff, but keep enough clips to provide a complete, well-paced summary.",
+        _ =>
+          "Comprehensive Deep-Dive: Err on the side of inclusion. Extract all main arguments, valuable nuances, compelling anecdotes, and detailed explanations. If a moment adds depth, context, or entertainment, include it.",
       };
 
       final prompt =
@@ -1013,9 +1074,21 @@ Rules for Extraction:
                   "items": {
                     "type": "OBJECT",
                     "properties": {
-                      "title": {"type": "STRING", "description": "Punchy 3-5 word title for the highlight clip."},
-                      "start": {"type": "INTEGER", "description": "Start time of the highlight clip in seconds."},
-                      "end": {"type": "INTEGER", "description": "End time of the highlight clip in seconds."},
+                      "title": {
+                        "type": "STRING",
+                        "description":
+                            "Punchy 3-5 word title for the highlight clip.",
+                      },
+                      "start": {
+                        "type": "INTEGER",
+                        "description":
+                            "Start time of the highlight clip in seconds.",
+                      },
+                      "end": {
+                        "type": "INTEGER",
+                        "description":
+                            "End time of the highlight clip in seconds.",
+                      },
                     },
                     "required": ["title", "start", "end"],
                   },
@@ -1148,7 +1221,7 @@ Rules for Extraction:
 
       if (hasVideo == true) {
         if (totalOriginalDuration <= 0) {
-          await _fetchTotalOriginalDuration();
+          await fetchVideoMetadata();
           notifyListeners();
         }
         await _injectJS(autoplay: autoplay);
@@ -1460,10 +1533,10 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
       window.__sqzdUserIntent = false;
 
       // Block Page Visibility API
-      Object.defineProperty(document, 'hidden', { value: false, writable: false });
-      Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: false });
-      Object.defineProperty(document, 'webkitHidden', { value: false, writable: false });
-      document.hasFocus = function() { return true; }; 
+        Object.defineProperty(document, 'hidden', { value: false, writable: false });
+        Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: false });
+        Object.defineProperty(document, 'webkitHidden', { value: false, writable: false });
+        document.hasFocus = function() { return true; }; 
 
       const stopProp = (e) => { e.stopImmediatePropagation(); e.stopPropagation(); };
       document.addEventListener('visibilitychange', stopProp, true);
@@ -1485,16 +1558,16 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
       document.addEventListener('click', allowPlay, {capture: true, passive: true});
 
       document.addEventListener('play', (e) => {
-        if (e.target && e.target.tagName === 'VIDEO') {
-          window.flutter_inappwebview.callHandler('playState', true);
+          if (e.target && e.target.tagName === 'VIDEO') {
+              window.flutter_inappwebview.callHandler('playState', true);
         }
       }, true);
 
       document.addEventListener('pause', (e) => {
         if (e.target && e.target.tagName === 'VIDEO') {
-          window.flutter_inappwebview.callHandler('playState', false);
-        }
-      }, true);
+              window.flutter_inappwebview.callHandler('playState', false);
+          }
+        }, true);
 
       document.addEventListener('timeupdate', (e) => {
         if (e.target && e.target.tagName === 'VIDEO') {
@@ -1580,7 +1653,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
         case AppLifecycleState.paused ||
             AppLifecycleState.inactive ||
             AppLifecycleState.hidden) {
-      appState.isAppInBackground = true;
+        appState.isAppInBackground = true;
       if (appState.isVideoPlaying || appState.isTtsPlaying) {
         Future.delayed(const Duration(milliseconds: 200), () {
           appState.webViewController?.resume();
