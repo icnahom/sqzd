@@ -26,7 +26,7 @@ https://github.com/user-attachments/assets/5a4439b4-ed05-4a95-9427-307af734a32e
 
 * **AltStore:** Sideload easily without a computer by adding our custom source to your [AltStore](https://altstore.io) app. Tap `+` in the Sources tab and paste this URL:
 ```text
-https://raw.githubusercontent.com/icnahom/sqzd/main/apps.json
+https://raw.githubusercontent.com/icnahom/sqzd/main/app.json
 ```
 
 
