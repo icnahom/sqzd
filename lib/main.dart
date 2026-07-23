@@ -570,7 +570,6 @@ class AppState extends ChangeNotifier {
 
   void _playVideo() {
     executeVideoJavascript("""
-        v.volume = 1.0;
         v.play().catch(e => {
           let b = document.querySelector('.ytp-play-button') || document.querySelector('.icon-button[aria-label="Play video"]');
           if(b) b.click();
@@ -595,7 +594,6 @@ class AppState extends ChangeNotifier {
     executeVideoJavascript("""
         v.pause(); 
         v.currentTime = ${highlight.start}; 
-        v.volume = 1.0; 
     """, setIntent: true);
 
     if (highlightEnded) {
@@ -1243,7 +1241,7 @@ Rules for Extraction:
     } else {
       final startRaw = extractedHighlights[0].start;
       executeVideoJavascript(
-        "v.pause(); v.currentTime = $startRaw; v.volume = 1.0;",
+        "v.pause(); v.currentTime = $startRaw;",
       );
     }
   }
