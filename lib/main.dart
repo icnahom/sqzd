@@ -222,6 +222,7 @@ class AppState extends ChangeNotifier {
   bool isTtsLoading = false;
 
   int _highlightSessionId = 0;
+  bool _hasEverPlayedAnyHighlight = false;
 
   AppState({
     required this.sharedPrefs,
@@ -605,7 +606,10 @@ class AppState extends ChangeNotifier {
         ? highlight.title
         : 'Highlight ${index + 1} of ${extractedHighlights.length}.';
 
-    if (isTtsEnabled && highlightEnded) {
+    final bool shouldPlayTts = isTtsEnabled &&
+        (highlightEnded || !_hasEverPlayedAnyHighlight);
+    if (shouldPlayTts) {
+      _hasEverPlayedAnyHighlight = true;
       _isTtsPlaying = true;
       await _playTtsAudio(ttsText);
 
@@ -629,6 +633,7 @@ class AppState extends ChangeNotifier {
 
   void clearHighlights() {
     stopTtsAudio();
+    _hasEverPlayedAnyHighlight = false;
     extractedHighlights = [];
     currentHighlightIndex = 0;
     currentVideoTime = 0.0;
@@ -1197,6 +1202,7 @@ Rules for Extraction:
     bool autoplay = true,
     VoidCallback? onSuccess,
   }) {
+    _hasEverPlayedAnyHighlight = false;
     extractedHighlights = highlights;
     currentHighlightIndex = 0;
     currentVideoTime = highlights.isNotEmpty ? highlights.first.start : 0.0;
