@@ -453,8 +453,7 @@ class AppState extends ChangeNotifier {
               if (m case {
                 'name': String name,
                 'supportedGenerationMethods': List methods,
-                'thinking': bool thinking,
-              } when methods.contains('generateContent') && thinking)
+              } when methods.contains('generateContent'))
                 name.replaceFirst('models/', ''),
           ];
         }
