@@ -19,7 +19,6 @@ https://github.com/user-attachments/assets/5a4439b4-ed05-4a95-9427-307af734a32e
 
 ### Android
 
-* **F-Droid:** Get it on [F-Droid](https://f-droid.org/packages/com.example.sqzd) .
 * **Direct APK:** Download the latest compiled `app-release.apk` directly from our [Releases](https://github.com/icnahom/sqzd/releases/latest) page.
 
 ### iOS
@@ -81,8 +80,10 @@ We do not use unofficial web-scraping tricks to fetch video transcripts. Instead
 
 ## ⚖️ License
 
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+This project is licensed under the **PolyForm Noncommercial License 1.0.0**. 
 
-You are free to copy, modify, and distribute this software under the terms of the AGPL-3.0. Please note that if you modify this app and distribute it, you must make your modified source code publicly available under the exact same AGPL-3.0 license.
+You are free to view, fork, modify, and use this software for personal, educational, 
+and non-commercial purposes. **Commercial use, including publishing this application 
+to any app store for profit, or using it within a commercial business, is strictly prohibited.**
 
-For complete terms and conditions, please refer to the [LICENSE](https://www.google.com/search?q=LICENSE) file in the repository.
+For commercial licensing inquiries, please contact me directly.
