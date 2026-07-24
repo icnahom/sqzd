@@ -602,6 +602,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     _updateAudioMediaItem();
+    _updateCachedIndex(index);
 
     stopTtsAudio();
 
@@ -618,8 +619,8 @@ class AppState extends ChangeNotifier {
         ? highlight.title
         : 'Highlight ${index + 1} of ${extractedHighlights.length}.';
 
-    final bool shouldPlayTts = isTtsEnabled &&
-        (highlightEnded || !_hasEverPlayedAnyHighlight);
+    final bool shouldPlayTts =
+        isTtsEnabled && (highlightEnded || !_hasEverPlayedAnyHighlight);
     if (shouldPlayTts) {
       _hasEverPlayedAnyHighlight = true;
       _isTtsPlaying = true;
@@ -636,10 +637,13 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void updateHighlightIndex(int index) {
-    if (currentHighlightIndex != index) {
-      currentHighlightIndex = index;
-      notifyListeners();
+  void _updateCachedIndex(int index) {
+    if (currentVideoId == null || extractedHighlights.isEmpty) return;
+    final key = _getCacheKey(currentVideoId!);
+    if (sharedPrefs.getString(key) case final String cachedStr) {
+      final data = jsonDecode(cachedStr) as Map<String, dynamic>;
+      data['currentIndex'] = index;
+      sharedPrefs.setString(key, jsonEncode(data));
     }
   }
 
@@ -681,11 +685,22 @@ class AppState extends ChangeNotifier {
         highlightDensity = cachedScale;
         totalOriginalDuration = duration.toDouble();
 
-        final parsed = (highlights)
+        final parsedHighlights = (highlights)
             .map((h) => Highlight.fromJson(Map<String, dynamic>.from(h)))
             .toList();
 
-        _applyHighlights(parsed, autoplay: false, onSuccess: onSuccess);
+        _applyHighlights(
+          parsedHighlights,
+          autoplay: false,
+          onSuccess: () {
+            if (jsonDecode(cachedStr) case {
+              'currentIndex': int idx,
+            } when idx >= 0 && idx < parsedHighlights.length) {
+              seekToHighlight(idx);
+            }
+            onSuccess?.call();
+          },
+        );
         return true;
       }
       sharedPrefs.remove(_getCacheKey(videoId));
@@ -1170,6 +1185,7 @@ Rules for Extraction:
           "timestamp": DateTime.now().millisecondsSinceEpoch,
           "duration": totalOriginalDuration,
           "scale": highlightDensity,
+          "currentIndex": 0,
           "highlights": parsedHighlights.map((h) => h.toJson()).toList(),
         }),
       );
@@ -1255,9 +1271,7 @@ Rules for Extraction:
       seekToHighlight(0);
     } else {
       final startRaw = extractedHighlights[0].start;
-      executeVideoJavascript(
-        "v.pause(); v.currentTime = $startRaw;",
-      );
+      executeVideoJavascript("v.pause(); v.currentTime = $startRaw;");
     }
   }
 }
