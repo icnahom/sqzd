@@ -231,6 +231,7 @@ class AppState extends ChangeNotifier {
   }) : _secureStorage = secureStorage,
        geminiApiKey = initialApiKey {
     _loadCachedPreferences();
+    _cleanupExpiredCaches();
     _setupAudioHandler();
   }
 
@@ -241,6 +242,20 @@ class AppState extends ChangeNotifier {
     if (sharedPrefs.getStringList('all_models_list')
         case final List<String> cachedModels) {
       availableModels = cachedModels;
+    }
+  }
+
+  void _cleanupExpiredCaches() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    const ttl = 7 * 24 * 60 * 60 * 1000;
+    final keys = sharedPrefs.getKeys();
+    for (final key in keys) {
+      if (!key.startsWith('yt_highlights_v1_')) continue;
+      if (sharedPrefs.getString(key) case final String cachedStr) {
+        final data = jsonDecode(cachedStr);
+        if (data case {'timestamp': int ts} when now - ts < ttl) continue;
+      }
+      sharedPrefs.remove(key);
     }
   }
 
@@ -673,6 +688,7 @@ class AppState extends ChangeNotifier {
         _applyHighlights(parsed, autoplay: false, onSuccess: onSuccess);
         return true;
       }
+      sharedPrefs.remove(_getCacheKey(videoId));
     }
     return false;
   }
