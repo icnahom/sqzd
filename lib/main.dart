@@ -655,6 +655,7 @@ class AppState extends ChangeNotifier {
     currentVideoTime = 0.0;
     totalOriginalDuration = 0;
     currentVideoTitle = null;
+    isVideoPlaying = false;
 
     _updateAudioMediaItem();
     _updateAudioPlaybackState();
@@ -977,7 +978,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
       _transitionSfxSource ??= await soLoud.loadAsset(
         'assets/sfx/kauasilbershlachparodes-shutter-click-3-494029.mp3',
       );
-      await soLoud.play(_transitionSfxSource!, volume: 0.35);
+      await soLoud.play(_transitionSfxSource!, volume: 0.3);
     } catch (e) {
       debugPrint("Transition SFX Error: $e");
     }
