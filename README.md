@@ -78,6 +78,17 @@ We do not use unofficial web-scraping tricks to fetch video transcripts. Instead
 > take some time.  We hope to transition to an official, fast YouTube Transcript API
 > whenever one becomes publicly available.
 
+## 📁 Why a single `main.dart`?
+
+You might notice the entire app lives in one file — `lib/main.dart`. This is intentional.
+
+- **🧑‍💻 Optimized for AI agents.** This codebase is designed to be read, understood, and edited by AI coding agents. A single file means the agent gets the full picture in one shot.
+- **🪙 Input tokens are cheap.** Throwing a ~20k token file at an LLM costs pennies. There's no need to split things up just to save on token cost.
+- **📦 Context windows are big.** Modern models comfortably handle 100k+ tokens. In a world of 1M context windows, the codebase can be the memory.
+
+> [!NOTE]
+> Since the agent has full context, we can split into multiple files anytime. The single file stays until there's a concrete reason to split.
+
 ## ⚖️ License
 
 This project is licensed under the **PolyForm Noncommercial License 1.0.0**. 
