@@ -1049,7 +1049,7 @@ You are a master video editor curating a highlight reel.
 Extract isolated, standalone highlight clips from this video. Do not create a continuous table of contents; pinpoint specific moments of peak value.
 
 Rules for Extraction:
-1, Full Timeline Coverage: Ensure selections are drawn from across the entire video.
+1. Full Timeline Coverage: Ensure selections are drawn from across the entire video.
 2. Pacing & Volume: $scaleText
 3. Trimming: Start the clip exactly when the core insight begins, and cut exactly when the point concludes. 
 4. Purity: Skip all intros, sponsor reads, rambling, and conversational filler.
@@ -1078,6 +1078,12 @@ Rules for Extraction:
         "responseSchema": {
           "type": "OBJECT",
           "properties": {
+            "status": {
+              "type": "STRING",
+              "description":
+                  "SUCCESS if the video was successfully analyzed. FAILURE if you could not access or process the video.",
+              "enum": ["SUCCESS", "FAILURE"],
+            },
             "highlights": {
               "type": "ARRAY",
               "items": {
@@ -1102,56 +1108,71 @@ Rules for Extraction:
               },
             },
           },
-          "required": ["highlights"],
+          "required": ["status", "highlights"],
         },
       };
 
-      final apiUri = Uri.parse(
+      Future<Map<String, dynamic>> callGemini(
+        Map<String, dynamic> payload,
+      ) async {
+        final response = await http.post(
+          Uri.parse(
         '$_geminiBaseUrl/models/$selectedModel:generateContent?key=$geminiApiKey',
-      );
-      final headers = {'Content-Type': 'application/json'};
-
-      http.Response response;
-      Map<String, dynamic> resData;
-
-      // 1. Primary Attempt: Prompt text with YouTube URL & Code Execution Tool enabled
-      try {
-        final primaryBody = jsonEncode({
-          "contents": [
-            {
-              "role": "user",
-              "parts": [
-                {
-                  "text":
-                      "$prompt\n\nVideo URL: https://www.youtube.com/watch?v=$videoId",
-                },
-              ],
-            },
-          ],
-          "tools": [
-            {"codeExecution": {}},
-            {"urlContext": {}},
-          ],
-          "generationConfig": generationConfig,
-        });
-
-        response = await http.post(apiUri, headers: headers, body: primaryBody);
-        resData = jsonDecode(response.body);
+      ),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(payload),
+        );
+        final resData = jsonDecode(response.body);
 
         if (resData case {'error': {'message': String msg}}) {
           throw Exception(msg);
         } else if (response.statusCode != 200) {
-          throw Exception(
-            'Primary attempt failed with status ${response.statusCode}',
-          );
+          throw Exception('API call failed with status ${response.statusCode}');
         }
+
+        if (resData case {
+          'candidates': [
+            {'content': {'parts': [{'text': String text}, ...]}},
+            ...,
+          ],
+        }) {
+          final parsed = jsonDecode(text);
+          if (parsed['status'] == 'FAILURE') {
+            throw Exception("Model explicitly returned FAILURE status.");
+          }
+          return parsed;
+        }
+
+        throw Exception(
+          "Could not find generated highlights text in the API response.",
+        );
+      }
+
+      Map<String, dynamic> responseJson;
+
+      // 1. Primary Attempt: Prompt text with YouTube URL & Code Execution Tool enabled
+      try {
+        responseJson = await callGemini({
+          "contents": [
+            {
+              "role": "user",
+              "parts": [
+                {"text": "$prompt\n\nVideo URL: $videoUrl"},
+              ],
+            },
+          ],
+          "tools": [
+            {"urlContext": {}},
+          ],
+          "generationConfig": generationConfig,
+        });
       } catch (primaryError) {
         debugPrint(
-          "Primary URL/CodeExecution approach failed: $primaryError. Falling back to fileUri...",
+          "Primary approach failed: $primaryError. Falling back to fileUri...",
         );
 
         // 2. Failover Attempt: Native fileUri video input
-        final failoverBody = jsonEncode({
+        responseJson = await callGemini({
           "contents": [
             {
               "role": "user",
@@ -1168,42 +1189,11 @@ Rules for Extraction:
           ],
           "generationConfig": generationConfig,
         });
-
-        response = await http.post(
-          apiUri,
-          headers: headers,
-          body: failoverBody,
-        );
-        resData = jsonDecode(response.body);
-
-        if (resData case {'error': {'message': String msg}}) {
-          throw Exception(msg);
-        } else if (response.statusCode != 200) {
-          throw Exception("Failover attempt failed with status: ${response.statusCode}");
-        }
       }
 
-      String? highlightsJson;
-
-      if (resData case {
-        'candidates': [
-          {'content': {'parts': [{'text': String text}, ...]}},
-          ...,
-        ],
-      }) {
-        highlightsJson = text;
-      }
-
-      if (highlightsJson == null) {
-        throw Exception(
-          "Could not find generated highlights text in the API response.",
-        );
-      }
-
-      final parsedHighlights =
-          (jsonDecode(highlightsJson)['highlights'] as List)
-              .map((h) => Highlight.fromJson(Map<String, dynamic>.from(h)))
-              .toList();
+      final parsedHighlights = (responseJson['highlights'] as List)
+          .map((h) => Highlight.fromJson(Map<String, dynamic>.from(h)))
+          .toList();
 
       parsedHighlights.sort((a, b) => a.start.compareTo(b.start));
 
@@ -1264,6 +1254,7 @@ Rules for Extraction:
       localNotifications.cancel(id: 888);
       onError("Error generating highlights: $e");
     }
+
     isProcessing = false;
     notifyListeners();
   }
