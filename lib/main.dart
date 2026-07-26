@@ -1073,12 +1073,85 @@ Rules for Extraction:
         ),
       );
 
-      final response = await http.post(
-        Uri.parse(
-          '$_geminiBaseUrl/models/$selectedModel:generateContent?key=$geminiApiKey',
-        ),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      final generationConfig = {
+        "responseMimeType": "application/json",
+        "responseSchema": {
+          "type": "OBJECT",
+          "properties": {
+            "highlights": {
+              "type": "ARRAY",
+              "items": {
+                "type": "OBJECT",
+                "properties": {
+                  "title": {
+                    "type": "STRING",
+                    "description":
+                        "Punchy 3-5 word title for the highlight clip.",
+                  },
+                  "start": {
+                    "type": "INTEGER",
+                    "description":
+                        "Start time of the highlight clip in seconds.",
+                  },
+                  "end": {
+                    "type": "INTEGER",
+                    "description": "End time of the highlight clip in seconds.",
+                  },
+                },
+                "required": ["title", "start", "end"],
+              },
+            },
+          },
+          "required": ["highlights"],
+        },
+      };
+
+      final apiUri = Uri.parse(
+        '$_geminiBaseUrl/models/$selectedModel:generateContent?key=$geminiApiKey',
+      );
+      final headers = {'Content-Type': 'application/json'};
+
+      http.Response response;
+      Map<String, dynamic> resData;
+
+      // 1. Primary Attempt: Prompt text with YouTube URL & Code Execution Tool enabled
+      try {
+        final primaryBody = jsonEncode({
+          "contents": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "text":
+                      "$prompt\n\nVideo URL: https://www.youtube.com/watch?v=$videoId",
+                },
+              ],
+            },
+          ],
+          "tools": [
+            {"codeExecution": {}},
+            {"urlContext": {}},
+          ],
+          "generationConfig": generationConfig,
+        });
+
+        response = await http.post(apiUri, headers: headers, body: primaryBody);
+        resData = jsonDecode(response.body);
+
+        if (resData case {'error': {'message': String msg}}) {
+          throw Exception(msg);
+        } else if (response.statusCode != 200) {
+          throw Exception(
+            'Primary attempt failed with status ${response.statusCode}',
+          );
+        }
+      } catch (primaryError) {
+        debugPrint(
+          "Primary URL/CodeExecution approach failed: $primaryError. Falling back to fileUri...",
+        );
+
+        // 2. Failover Attempt: Native fileUri video input
+        final failoverBody = jsonEncode({
           "contents": [
             {
               "role": "user",
@@ -1093,48 +1166,21 @@ Rules for Extraction:
               ],
             },
           ],
-          "generationConfig": {
-            "responseMimeType": "application/json",
-            "responseSchema": {
-              "type": "OBJECT",
-              "properties": {
-                "highlights": {
-                  "type": "ARRAY",
-                  "items": {
-                    "type": "OBJECT",
-                    "properties": {
-                      "title": {
-                        "type": "STRING",
-                        "description":
-                            "Punchy 3-5 word title for the highlight clip.",
-                      },
-                      "start": {
-                        "type": "INTEGER",
-                        "description":
-                            "Start time of the highlight clip in seconds.",
-                      },
-                      "end": {
-                        "type": "INTEGER",
-                        "description":
-                            "End time of the highlight clip in seconds.",
-                      },
-                    },
-                    "required": ["title", "start", "end"],
-                  },
-                },
-              },
-              "required": ["highlights"],
-            },
-          },
-        }),
-      );
+          "generationConfig": generationConfig,
+        });
 
-      final resData = jsonDecode(response.body);
+        response = await http.post(
+          apiUri,
+          headers: headers,
+          body: failoverBody,
+        );
+        resData = jsonDecode(response.body);
 
-      if (resData case {'error': {'message': String msg}}) {
-        throw Exception(msg);
-      } else if (response.statusCode != 200) {
-        throw Exception("API Error: ${response.statusCode}");
+        if (resData case {'error': {'message': String msg}}) {
+          throw Exception(msg);
+        } else if (response.statusCode != 200) {
+          throw Exception("Failover attempt failed with status: ${response.statusCode}");
+        }
       }
 
       String? highlightsJson;
