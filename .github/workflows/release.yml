@@ -30,18 +30,6 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Update pubspec.yaml version from tag
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "Setting version to $VERSION"
-          perl -i -pe "s/^version:.*/version: $VERSION/" pubspec.yaml
-
-      - name: Commit version bump back to repo
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: bump version to ${{ github.ref_name }}"
-          file_pattern: pubspec.yaml
-
       - name: Build Android APK
         run: flutter build apk --release
 
