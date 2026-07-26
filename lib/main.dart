@@ -536,6 +536,7 @@ class AppState extends ChangeNotifier {
       notifyListeners();
 
       if (playing) {
+        fetchVideoMetadata();
         _updateAudioMediaItem();
       }
       _updateAudioPlaybackState();
