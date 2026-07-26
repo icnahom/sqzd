@@ -1307,22 +1307,20 @@ Rules for Extraction:
   }
 
   Future<void> _tryInjectJS({bool autoplay = true}) async {
-    for (var i = 0; i < 15; i++) {
-      if (extractedHighlights.isEmpty) return;
-      final hasVideo = await webViewController?.evaluateJavascript(
-        source:
-            "document.getElementsByTagName('video').length > 0 && document.getElementsByTagName('video')[0].readyState > 0",
-      );
+    if (extractedHighlights.isEmpty) return;
 
-      if (hasVideo == true) {
-        if (totalOriginalDuration <= 0) {
-          await fetchVideoMetadata();
-          notifyListeners();
-        }
-        await _injectJS(autoplay: autoplay);
-        return;
+    final hasVideo = await webViewController?.evaluateJavascript(
+      source: "window.__sqzdWaitForVideo();",
+    );
+
+    if (hasVideo == true) {
+      if (totalOriginalDuration <= 0) {
+        await fetchVideoMetadata();
+        notifyListeners();
       }
-      await Future.delayed(const Duration(milliseconds: 1000));
+      await _injectJS(autoplay: autoplay);
+    } else {
+      debugPrint("Failed to detect video readiness after 15 seconds.");
     }
   }
 
@@ -1675,6 +1673,28 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
           }
         }
       }, true);
+
+      window.__sqzdWaitForVideo = function() {
+        return new Promise((resolve) => {
+          const v = document.querySelector('video');
+          if (v && v.readyState > 0) return resolve(true);
+
+          const timeout = setTimeout(() => {
+            document.removeEventListener('loadedmetadata', onReady, true);
+            resolve(false);
+          }, 15000);
+
+          const onReady = (e) => {
+            if (e.target && e.target.tagName === 'VIDEO') {
+              clearTimeout(timeout);
+              document.removeEventListener('loadedmetadata', onReady, true);
+              resolve(true);
+            }
+          };
+
+          document.addEventListener('loadedmetadata', onReady, true);
+        });
+      };
     })();
   """;
 
@@ -2500,10 +2520,12 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                         }
                       },
                       onUpdateVisitedHistory: (controller, url, isReload) async {
-                        state.executeVideoJavascript(
-                          "v.pause();",
-                          setIntent: false,
-                        );
+                        if (!state.isVideoPlaying) {
+                          state.executeVideoJavascript(
+                            "v.pause();",
+                            setIntent: false,
+                          );
+                        }
 
                         if (url != null) {
                           final urlStr = url.toString();
