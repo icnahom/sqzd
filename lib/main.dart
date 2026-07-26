@@ -2518,13 +2518,6 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                         }
                       },
                       onUpdateVisitedHistory: (controller, url, isReload) async {
-                        if (!state.isVideoPlaying) {
-                          state.executeVideoJavascript(
-                            "v.pause();",
-                            setIntent: false,
-                          );
-                        }
-
                         if (url != null) {
                           final urlStr = url.toString();
                           final regExp = RegExp(
@@ -2534,17 +2527,24 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                               .firstMatch(urlStr)
                               ?.group(1);
 
-                          if (newVideoId != null &&
-                              newVideoId != state.currentVideoId) {
+                          // Initiate pause if user has not pressed play yet or if the video has changed
+                          if (!state.isVideoPlaying ||
+                              (state.currentVideoId != null &&
+                                  newVideoId != state.currentVideoId)) {
+                            state.executeVideoJavascript(
+                              "v.pause();",
+                              setIntent: false,
+                            );
+                          }
+
+                          if (newVideoId != state.currentVideoId) {
                             state.sharedPrefs.remove('last_video_id');
                             state.currentVideoId = newVideoId;
                             state.clearHighlights();
-                            state.loadCachedHighlights(newVideoId);
-                          } else if (newVideoId == null &&
-                              state.currentVideoId != null) {
-                            state.sharedPrefs.remove('last_video_id');
-                            state.currentVideoId = null;
-                            state.clearHighlights();
+
+                            if (newVideoId != null) {
+                              state.loadCachedHighlights(newVideoId);
+                            }
                           }
                         }
                       },
