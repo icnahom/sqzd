@@ -137,6 +137,12 @@ class BackgroundAudioHandler extends BaseAudioHandler {
 
   @override
   Future<void> seek(Duration position) async => onSeekAction?.call(position);
+
+  @override
+  Future<void> onTaskRemoved() async {
+    await stop();
+    super.onTaskRemoved();
+  }
 }
 
 class Highlight {
@@ -633,12 +639,13 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void _updateCachedIndex(int index) {
+  void _updateCachedIndex(int index, {bool isCompleted = false}) {
     if (currentVideoId == null || extractedHighlights.isEmpty) return;
     final key = _getCacheKey(currentVideoId!);
     if (sharedPrefs.getString(key) case final String cachedStr) {
       final data = jsonDecode(cachedStr) as Map<String, dynamic>;
       data['currentIndex'] = index;
+      data['isCompleted'] = isCompleted;
       sharedPrefs.setString(key, jsonEncode(data));
     }
   }
@@ -659,6 +666,19 @@ class AppState extends ChangeNotifier {
   }
 
   String _getCacheKey(String videoId) => "yt_highlights_v1_$videoId";
+
+  String? getLastVideo() {
+    final videoId = sharedPrefs.getString('last_video_id');
+    if (videoId == null) return null;
+
+    if (sharedPrefs.getString(_getCacheKey(videoId))
+        case final String cachedStr) {
+      if (jsonDecode(cachedStr) case {'isCompleted': false}) {
+        return "https://m.youtube.com/watch?v=$videoId";
+      }
+    }
+    return null;
+  }
 
   bool loadCachedHighlights(
     String videoId, {
@@ -933,6 +953,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
     if (currentIndex >= extractedHighlights.length - 1) {
       executeVideoJavascript("v.pause();");
       setPlayState(false);
+      _updateCachedIndex(currentIndex, isCompleted: true);
       _showSavedTimeSnackbar();
       await _playSuccessSfx();
     } else {
@@ -1117,8 +1138,8 @@ Rules for Extraction:
       ) async {
         final response = await http.post(
           Uri.parse(
-        '$_geminiBaseUrl/models/$selectedModel:generateContent?key=$geminiApiKey',
-      ),
+            '$_geminiBaseUrl/models/$selectedModel:generateContent?key=$geminiApiKey',
+          ),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode(payload),
         );
@@ -1268,6 +1289,10 @@ Rules for Extraction:
     currentHighlightIndex = 0;
     currentVideoTime = highlights.isNotEmpty ? highlights.first.start : 0.0;
 
+    if (currentVideoId != null) {
+      sharedPrefs.setString('last_video_id', currentVideoId!);
+    }
+
     isProcessing = false;
     notifyListeners();
 
@@ -1302,7 +1327,7 @@ Rules for Extraction:
     if (autoplay) {
       seekToHighlight(0);
     } else {
-      final startRaw = extractedHighlights[0].start;
+      final startRaw = extractedHighlights[currentHighlightIndex].start;
       executeVideoJavascript("v.pause(); v.currentTime = $startRaw;");
     }
   }
@@ -1651,6 +1676,9 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
+    currentUrl =
+        context.read<AppState>().getLastVideo() ?? "https://m.youtube.com";
+
     _pageController = PageController();
 
     pullToRefreshController = PullToRefreshController(
@@ -1716,7 +1744,12 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
       appState.webViewController?.resume();
 
       // Restore video rendering when user opens the app back up
-      appState.executeVideoJavascript("if(v) v.style.display = '';");
+      appState.executeVideoJavascript("""
+        if(v) { 
+          v.style.visibility = 'visible'; 
+          v.style.display = '';
+        }
+      """);
     } else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.paused) {
@@ -2401,6 +2434,9 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                         allowsInlineMediaPlayback: true,
                         allowBackgroundAudioPlaying: true,
                       ),
+                      onRenderProcessGone: (controller, detail) async {
+                        controller.reload();
+                      },
                       initialUserScripts: UnmodifiableListView<UserScript>([
                         UserScript(
                           source: _initScript,
@@ -2473,11 +2509,13 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
 
                           if (newVideoId != null &&
                               newVideoId != state.currentVideoId) {
+                            state.sharedPrefs.remove('last_video_id');
                             state.currentVideoId = newVideoId;
                             state.clearHighlights();
                             state.loadCachedHighlights(newVideoId);
                           } else if (newVideoId == null &&
                               state.currentVideoId != null) {
+                            state.sharedPrefs.remove('last_video_id');
                             state.currentVideoId = null;
                             state.clearHighlights();
                           }
