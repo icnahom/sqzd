@@ -402,10 +402,8 @@ class AppState extends ChangeNotifier {
         source: """
           (function() {
             var v = document.getElementsByTagName('video')[0];
-            var titleMeta = document.querySelector('meta[property="og:title"]');
-            var title = titleMeta ? titleMeta.content : document.title;
             return {
-              title: title || '',
+              title: document.title || '',
               duration: v && !isNaN(v.duration) ? v.duration : 0
             };
           })();
