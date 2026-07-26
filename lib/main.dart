@@ -1331,7 +1331,11 @@ Rules for Extraction:
       seekToHighlight(0);
     } else {
       final startRaw = extractedHighlights[currentHighlightIndex].start;
-      executeVideoJavascript("v.pause(); v.currentTime = $startRaw;");
+      if (isVideoPlaying) {
+        executeVideoJavascript("v.currentTime = $startRaw;");
+      } else {
+        executeVideoJavascript("v.pause(); v.currentTime = $startRaw;");
+      }
     }
   }
 }
