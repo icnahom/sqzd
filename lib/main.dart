@@ -580,7 +580,7 @@ class AppState extends ChangeNotifier {
     } else {
       _resumeWebviewAndExecute(() {
         executeVideoJavascript(
-          "v.paused ? v.play() : v.pause();",
+          "v.muted = false; v.paused ? v.play() : v.pause();",
           setIntent: true,
         );
       });
@@ -589,6 +589,7 @@ class AppState extends ChangeNotifier {
 
   void _playVideo() {
     executeVideoJavascript("""
+        v.muted = false;
         v.play().catch(e => {
           let b = document.querySelector('.ytp-play-button') || document.querySelector('.icon-button[aria-label="Play video"]');
           if(b) b.click();
@@ -612,6 +613,7 @@ class AppState extends ChangeNotifier {
     stopTtsAudio();
 
     executeVideoJavascript("""
+        v.muted = false;
         v.pause(); 
         v.currentTime = ${highlight.start}; 
     """, setIntent: true);
