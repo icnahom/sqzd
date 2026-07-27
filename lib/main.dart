@@ -595,20 +595,8 @@ class AppState extends ChangeNotifier {
   }
 
   void _playVideo() {
-    var checkTimeJs = "";
-    if (extractedHighlights.isNotEmpty) {
-      final h = extractedHighlights[currentHighlightIndex];
-      checkTimeJs =
-          """
-        if (v.currentTime < ${h.start - 0.5} || v.currentTime >= ${h.end}) {
-          v.currentTime = ${h.start};
-        }
-      """;
-    }
-
     executeVideoJavascript("""
         v.muted = false;
-        $checkTimeJs
         v.play().catch(e => {
           let b = document.querySelector('.ytp-play-button') || document.querySelector('.icon-button[aria-label="Play video"]');
           if(b) b.click();
@@ -703,7 +691,7 @@ class AppState extends ChangeNotifier {
           return "https://m.youtube.com/watch?v=$videoId&t=${startSec.toInt()}s";
         }
       }
-      return "https://m.youtube.com/watch?v=$videoId";
+        return "https://m.youtube.com/watch?v=$videoId";
     }
     return null;
   }
