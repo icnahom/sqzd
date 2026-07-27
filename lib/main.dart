@@ -1213,10 +1213,6 @@ Rules for Extraction:
           "generationConfig": generationConfig,
         });
       } catch (primaryError) {
-        if (primaryError.toString().contains("API call failed with status")) {
-          rethrow;
-        }
-
         debugPrint(
           "Primary approach failed: $primaryError. Falling back to fileUri...",
         );
