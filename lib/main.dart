@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -1168,15 +1169,23 @@ Rules for Extraction:
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode(payload),
         );
-        final resData = jsonDecode(response.body);
 
-        if (resData case {'error': {'message': String msg}}) {
-          throw Exception(msg);
-        } else if (response.statusCode != 200) {
-          throw Exception('API call failed with status ${response.statusCode}');
+        if (response.statusCode != 200) {
+          String errorMessage =
+              'API failed with HTTP status ${response.statusCode}';
+
+          try {
+            if (jsonDecode(response.body) case {
+              'error': {'message': String msg},
+            }) {
+              errorMessage = msg;
+            }
+          } catch (_) {}
+
+          throw HttpException(errorMessage);
         }
 
-        if (resData case {
+        if (jsonDecode(response.body) case {
           'candidates': [
             {'content': {'parts': [{'text': String text}, ...]}},
             ...,
@@ -1196,8 +1205,8 @@ Rules for Extraction:
 
       Map<String, dynamic> responseJson;
 
-      // 1. Primary Attempt: Prompt text with YouTube URL & Code Execution Tool enabled
       try {
+        // 1. Primary Attempt: urlContext
         responseJson = await callGemini({
           "contents": [
             {
@@ -1212,6 +1221,8 @@ Rules for Extraction:
           ],
           "generationConfig": generationConfig,
         });
+      } on HttpException {
+        rethrow;
       } catch (primaryError) {
         debugPrint(
           "Primary approach failed: $primaryError. Falling back to fileUri...",
