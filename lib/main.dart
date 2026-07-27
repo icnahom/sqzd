@@ -265,9 +265,13 @@ class AppState extends ChangeNotifier {
   }
 
   void _setupAudioHandler() {
-    audioHandler.onPlayAction = () => _resumeWebviewAndExecute(_playVideo);
+    audioHandler.onPlayAction = () => _resumeWebviewAndExecute(() {
+      setPlayState(true);
+      _playVideo();
+    });
     audioHandler.onPauseAction = () => _resumeWebviewAndExecute(() {
       stopTtsAudio();
+      setPlayState(false);
       executeVideoJavascript("v.pause();");
     });
     audioHandler.onSkipNextAction = () => _resumeWebviewAndExecute(() {
@@ -571,24 +575,40 @@ class AppState extends ChangeNotifier {
   void togglePlayPause() {
     if (_isTtsPlaying) {
       stopTtsAudio();
+      setPlayState(true);
       _playVideo();
     } else if (extractedHighlights.isNotEmpty &&
         currentHighlightIndex >= extractedHighlights.length - 1 &&
         !isVideoPlaying) {
       seekToHighlight(currentHighlightIndex);
+    } else if (!isVideoPlaying) {
+      _resumeWebviewAndExecute(() {
+        setPlayState(true);
+        _playVideo();
+      });
     } else {
       _resumeWebviewAndExecute(() {
-        executeVideoJavascript(
-          "v.muted = false; v.paused ? v.play() : v.pause();",
-          setIntent: true,
-        );
+        setPlayState(false);
+        executeVideoJavascript("v.pause();", setIntent: true);
       });
     }
   }
 
   void _playVideo() {
+    var checkTimeJs = "";
+    if (extractedHighlights.isNotEmpty) {
+      final h = extractedHighlights[currentHighlightIndex];
+      checkTimeJs =
+          """
+        if (v.currentTime < ${h.start - 0.5} || v.currentTime >= ${h.end}) {
+          v.currentTime = ${h.start};
+        }
+      """;
+    }
+
     executeVideoJavascript("""
         v.muted = false;
+        $checkTimeJs
         v.play().catch(e => {
           let b = document.querySelector('.ytp-play-button') || document.querySelector('.icon-button[aria-label="Play video"]');
           if(b) b.click();
@@ -674,9 +694,16 @@ class AppState extends ChangeNotifier {
 
     if (sharedPrefs.getString(_getCacheKey(videoId))
         case final String cachedStr) {
-      if (jsonDecode(cachedStr) case {'isCompleted': false}) {
-        return "https://m.youtube.com/watch?v=$videoId";
+      if (jsonDecode(cachedStr) case {
+        'isCompleted': false,
+        'currentIndex': int idx,
+        'highlights': List highlights,
+      } when idx >= 0 && idx < highlights.length) {
+        if (highlights[idx] case {'start': num startSec}) {
+          return "https://m.youtube.com/watch?v=$videoId&t=${startSec.toInt()}s";
+        }
       }
+      return "https://m.youtube.com/watch?v=$videoId";
     }
     return null;
   }
@@ -706,17 +733,18 @@ class AppState extends ChangeNotifier {
             .map((h) => Highlight.fromJson(Map<String, dynamic>.from(h)))
             .toList();
 
+        int savedIndex = 0;
+        if (jsonDecode(cachedStr) case {
+          'currentIndex': int idx,
+        } when (idx < parsedHighlights.length - 1)) {
+          savedIndex = idx;
+        }
+
         _applyHighlights(
           parsedHighlights,
           autoplay: false,
-          onSuccess: () {
-            if (jsonDecode(cachedStr) case {
-              'currentIndex': int idx,
-            } when idx < parsedHighlights.length - 1) {
-              seekToHighlight(idx);
-            }
-            onSuccess?.call();
-          },
+          startIndex: savedIndex,
+          onSuccess: onSuccess,
         );
         return true;
       }
@@ -1284,11 +1312,14 @@ Rules for Extraction:
   void _applyHighlights(
     List<Highlight> highlights, {
     bool autoplay = true,
+    int startIndex = 0,
     VoidCallback? onSuccess,
   }) {
     extractedHighlights = highlights;
-    currentHighlightIndex = 0;
-    currentVideoTime = highlights.isNotEmpty ? highlights.first.start : 0.0;
+    currentHighlightIndex = startIndex;
+    currentVideoTime = highlights.isNotEmpty
+        ? highlights[startIndex].start
+        : 0.0;
 
     if (currentVideoId != null) {
       sharedPrefs.setString('last_video_id', currentVideoId!);
@@ -1324,14 +1355,13 @@ Rules for Extraction:
 
   Future<void> _injectJS({bool autoplay = true}) async {
     if (autoplay) {
-      seekToHighlight(0);
+      seekToHighlight(currentHighlightIndex);
     } else {
       final startRaw = extractedHighlights[currentHighlightIndex].start;
-      if (isVideoPlaying) {
-        executeVideoJavascript("v.currentTime = $startRaw;");
-      } else {
-        executeVideoJavascript("v.pause(); v.currentTime = $startRaw;");
-      }
+      executeVideoJavascript("""
+        v.currentTime = $startRaw;
+        v.pause();
+      """, setIntent: false);
     }
   }
 }
@@ -2527,10 +2557,11 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                               .firstMatch(urlStr)
                               ?.group(1);
 
-                          // Initiate pause if user has not pressed play yet or if the video has changed
+                          // Initiate pause if user has not pressed play yet, or if the video has changed
                           if (!state.isVideoPlaying ||
                               (state.currentVideoId != null &&
                                   newVideoId != state.currentVideoId)) {
+                            state.setPlayState(false);
                             state.executeVideoJavascript(
                               "v.pause();",
                               setIntent: false,
