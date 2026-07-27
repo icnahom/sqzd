@@ -1338,11 +1338,11 @@ Rules for Extraction:
   Future<void> _tryInjectJS({bool autoplay = true}) async {
     if (extractedHighlights.isEmpty) return;
 
-    final hasVideo = await webViewController?.evaluateJavascript(
-      source: "window.__sqzdWaitForVideo();",
+    final result = await webViewController?.callAsyncJavaScript(
+      functionBody: "return await window.__sqzdWaitForVideo();",
     );
 
-    if (hasVideo == true) {
+    if (result?.value == true) {
       if (totalOriginalDuration <= 0) {
         await fetchVideoMetadata();
         notifyListeners();
