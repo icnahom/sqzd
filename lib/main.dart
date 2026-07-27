@@ -621,8 +621,8 @@ class AppState extends ChangeNotifier {
 
     executeVideoJavascript("""
         v.muted = false;
-        v.pause(); 
-        v.currentTime = ${highlight.start}; 
+        v.pause();
+        v.currentTime = ${highlight.start};
     """, setIntent: true);
 
     if (highlightEnded) {
@@ -691,7 +691,7 @@ class AppState extends ChangeNotifier {
           return "https://m.youtube.com/watch?v=$videoId&t=${startSec.toInt()}s";
         }
       }
-        return "https://m.youtube.com/watch?v=$videoId";
+      return "https://m.youtube.com/watch?v=$videoId";
     }
     return null;
   }
@@ -1073,25 +1073,33 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
 
       final scaleText = switch (highlightDensity) {
         1 =>
-          "Ruthlessly Selective: Extract only the absolute peak moments. Apply a 10/10 filter. I want only the most profound or critical standalone clips. Leave out everything else.",
+          "Viral & Punchy: Extract only the most explosive, standalone 'aha!' moments. Think bite-sized, highly distilled micro-clips. Capture the exact punchline or the sudden realization. Strip away all the setup and background context—give me only the purest, most concentrated essence of the point.",
         2 =>
-          "Balanced Narrative: Extract the core story. Select the primary thesis points and key supporting examples. Cut the fluff, but keep enough clips to provide a complete, well-paced summary.",
+          "Balanced Takeaways: Extract the core thesis points and key supporting examples. These should be concise, highly focused concepts. Cut the long-winded explanations, but leave just enough context so the point makes perfect sense on its own.",
         _ =>
-          "Comprehensive Deep-Dive: Err on the side of inclusion. Extract all main arguments, valuable nuances, compelling anecdotes, and detailed explanations. If a moment adds depth, context, or entertainment, include it.",
+          "Comprehensive Deep-Dive: Include all main arguments, nuances, and compelling anecdotes. Clips here can be more expansive and conversational to capture the full weight of detailed explanations, but still trim away obvious dead air.",
       };
 
       final prompt =
           """
-You are a master video editor curating a highlight reel. 
+You are a master video editor specializing in short-form, high-impact highlight reels.
 
-Extract isolated, standalone highlight clips from this video. Do not create a continuous table of contents; pinpoint specific moments of peak value.
+Extract isolated, standalone highlight clips from this video. Do not create a
+continuous table of contents; pinpoint specific, highly focused moments of peak
+value.
 
 Rules for Extraction:
-1. Full Timeline Coverage: Ensure selections are drawn from across the entire video.
-2. Pacing & Volume: $scaleText
-3. Trimming: Start the clip exactly when the core insight begins, and cut exactly when the point concludes. 
-4. Purity: Skip all intros, sponsor reads, rambling, and conversational filler.
+
+1.  Full Timeline Coverage: Ensure selections are drawn from across the entire
+    video.
+2.  Pacing & Format: $scaleText
+3.  Aggressive Cropping: Do not include the entire conversational wind-up. Start
+    the clip at the exact moment the speaker gets to the point, and cut it the
+    second the core thought resolves. We want the meat, not the fat.
+4.  Purity: Absolutely no intros, sponsor reads, host transitions, meandering
+    thoughts, or conversational filler.
 """;
+
       notifyListeners();
 
       localNotifications.show(
@@ -1647,7 +1655,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
         Object.defineProperty(document, 'hidden', { value: false, writable: false });
         Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: false });
         Object.defineProperty(document, 'webkitHidden', { value: false, writable: false });
-        document.hasFocus = function() { return true; }; 
+        document.hasFocus = function() { return true; };
 
       const stopProp = (e) => { e.stopImmediatePropagation(); e.stopPropagation(); };
       document.addEventListener('visibilitychange', stopProp, true);
@@ -1788,8 +1796,8 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
 
       // Restore video rendering when user opens the app back up
       appState.executeVideoJavascript("""
-        if(v) { 
-          v.style.visibility = 'visible'; 
+        if(v) {
+          v.style.visibility = 'visible';
           v.style.display = '';
         }
       """);
