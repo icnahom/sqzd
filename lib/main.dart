@@ -252,7 +252,7 @@ class AppState extends ChangeNotifier {
 
   void _cleanupExpiredCaches() {
     final now = DateTime.now().millisecondsSinceEpoch;
-    const ttl = 7 * 24 * 60 * 60 * 1000;
+    final ttl = Duration(days: 7).inMilliseconds;
     final keys = sharedPrefs.getKeys();
     for (final key in keys) {
       if (!key.startsWith('yt_highlights_v1_')) continue;
@@ -698,23 +698,23 @@ class AppState extends ChangeNotifier {
 
   bool loadCachedHighlights(
     String videoId, {
-    bool checkScale = false,
+    bool checkDensity = false,
     VoidCallback? onSuccess,
   }) {
     if (sharedPrefs.getString(_getCacheKey(videoId))
         case final String cachedStr) {
       if (jsonDecode(cachedStr)
           case {
-            'timestamp': int timestamp,
-            'scale': int cachedScale,
-            'duration': num duration,
-            'highlights': List highlights,
-          }
+                'timestamp': int timestamp,
+                'duration': num duration,
+                'highlights': List highlights,
+              } &&
+              ({'density': int cachedDensity} || {'scale': int cachedDensity})
           when DateTime.now().millisecondsSinceEpoch - timestamp <
-              7 * 24 * 60 * 60 * 1000) {
-        if (checkScale && cachedScale != highlightDensity) return false;
+              const Duration(days: 7).inMilliseconds) {
+        if (checkDensity && cachedDensity != highlightDensity) return false;
 
-        highlightDensity = cachedScale;
+        highlightDensity = cachedDensity;
         totalOriginalDuration = duration.toDouble();
 
         final parsedHighlights = (highlights)
@@ -1063,7 +1063,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
       if (!forceRegenerate &&
           loadCachedHighlights(
             videoId,
-            checkScale: true,
+            checkDensity: true,
             onSuccess: onSuccess,
           )) {
         isProcessing = false;
@@ -1071,7 +1071,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         return;
       }
 
-      final scaleText = switch (highlightDensity) {
+      final densityText = switch (highlightDensity) {
         1 =>
           "Viral & Punchy: Extract only the most explosive, standalone 'aha!' moments. Think bite-sized, highly distilled micro-clips. Capture the exact punchline or the sudden realization. Strip away all the setup and background context—give me only the purest, most concentrated essence of the point.",
         2 =>
@@ -1092,7 +1092,7 @@ Rules for Extraction:
 
 1.  Full Timeline Coverage: Ensure selections are drawn from across the entire
     video.
-2.  Pacing & Format: $scaleText
+2.  Pacing & Format: $densityText
 3.  Aggressive Cropping: Do not include the entire conversational wind-up. Start
     the clip at the exact moment the speaker gets to the point, and cut it the
     second the core thought resolves. We want the meat, not the fat.
@@ -1213,6 +1213,10 @@ Rules for Extraction:
           "generationConfig": generationConfig,
         });
       } catch (primaryError) {
+        if (primaryError.toString().contains("API call failed with status")) {
+          rethrow;
+        }
+
         debugPrint(
           "Primary approach failed: $primaryError. Falling back to fileUri...",
         );
@@ -1262,7 +1266,7 @@ Rules for Extraction:
         jsonEncode({
           "timestamp": DateTime.now().millisecondsSinceEpoch,
           "duration": totalOriginalDuration,
-          "scale": highlightDensity,
+          "density": highlightDensity,
           "currentIndex": 0,
           "highlights": parsedHighlights.map((h) => h.toJson()).toList(),
         }),
@@ -2028,7 +2032,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
     });
   }
 
-  Widget _buildScaleOption(
+  Widget _buildDensityOption(
     BuildContext context,
     AppState state,
     int value,
@@ -2137,7 +2141,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                   Row(
                     children: [
                       Expanded(
-                        child: _buildScaleOption(
+                        child: _buildDensityOption(
                           context,
                           state,
                           1,
@@ -2147,7 +2151,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: _buildScaleOption(
+                        child: _buildDensityOption(
                           context,
                           state,
                           2,
@@ -2157,7 +2161,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: _buildScaleOption(
+                        child: _buildDensityOption(
                           context,
                           state,
                           3,
