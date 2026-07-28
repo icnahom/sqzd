@@ -997,13 +997,14 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         ? "$savedMinutes minute${savedMinutes > 1 ? 's' : ''}"
         : "${savedSeconds.round()} seconds";
 
-    scaffoldMessengerKey.currentState?.clearSnackBars();
-    scaffoldMessengerKey.currentState?.showSnackBar(
-      SnackBar(
-        content: Text("🎉 You've saved $savedText!"),
-        duration: const Duration(seconds: 4),
-      ),
-    );
+    scaffoldMessengerKey.currentState
+      ?..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text("🎉 You've saved $savedText!"),
+          duration: const Duration(seconds: 4),
+        ),
+      );
   }
 
   AudioSource? _transitionSfxSource;
@@ -1253,20 +1254,6 @@ Rules for Extraction:
           .toList();
 
       parsedHighlights.sort((a, b) => a.start.compareTo(b.start));
-
-      for (var i = 1; i < parsedHighlights.length; i++) {
-        final curr = parsedHighlights[i];
-        final prev = parsedHighlights[i - 1];
-
-        if (curr.start <= prev.end) {
-          var newStart = prev.end + 1.0;
-          var newEnd = curr.end;
-          if (newEnd <= newStart) {
-            newEnd = newStart + 15.0;
-          }
-          parsedHighlights[i] = curr.copyWith(start: newStart, end: newEnd);
-        }
-      }
 
       sharedPrefs.setString(
         _getCacheKey(videoId),
@@ -2202,11 +2189,11 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                       child: Text(
                         state.selectedModel == null ? "Select Model" : "Models",
                         textAlign: TextAlign.start,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: colors.onSurface,
-                              fontSize: 16,
-                            ),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: colors.onSurface,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ),
