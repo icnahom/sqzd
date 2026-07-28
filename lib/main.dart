@@ -1137,7 +1137,7 @@ Rules for Extraction:
                   "last_spoken_words": {
                     "type": "STRING",
                     "description":
-                        "End time in seconds, exactly matching the timestamp of last_spoken_words",
+                        "The exact, verbatim last 3-5 words spoken aloud before the clip cuts.",
                   },
                   "start": {
                     "type": "NUMBER",
@@ -1146,7 +1146,8 @@ Rules for Extraction:
                   },
                   "end": {
                     "type": "NUMBER",
-                    "description": "End time of the highlight clip in seconds.",
+                    "description":
+                        "End time in seconds, precisely matching the end of last_spoken_words.",
                   },
                 },
                 "required": ["title", "last_spoken_words", "start", "end"],
