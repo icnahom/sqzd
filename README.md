@@ -71,7 +71,7 @@ flutter run --profile
 
 ## 🧠 How It Works
 
-We do not use unofficial web-scraping tricks to fetch video transcripts. Instead, we use the official [Gemini Video Understanding API](https://ai.google.dev/gemini-api/docs/video-understanding#youtube) using the `fileUri` method with the YouTube video URL.
+We do not use unofficial web-scraping tricks to fetch video transcripts. Instead, we use the official [Gemini Video Understanding API](https://ai.google.dev/gemini-api/docs/video-understanding#youtube).
 
 > [!NOTE]
 > Because the AI model analyzes the video content directly, initial generation can take some time. We hope to transition to an official, 
