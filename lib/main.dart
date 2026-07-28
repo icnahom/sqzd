@@ -2017,14 +2017,20 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                             selectedModel: state.selectedModel,
                             isTts: false,
                             colors: colors,
-                            onSelect: state.selectModel,
+                            onSelect: (model, isTts) {
+                              state.selectModel(model, isTts);
+                              Navigator.pop(ctx);
+                            },
                           ),
                           ModelListTab(
                             models: state.ttsModels,
                             selectedModel: state.selectedTtsModel,
                             isTts: true,
                             colors: colors,
-                            onSelect: state.selectModel,
+                            onSelect: (model, isTts) {
+                              state.selectModel(model, isTts);
+                              Navigator.pop(ctx);
+                            },
                           ),
                         ],
                       ),
@@ -2184,29 +2190,23 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                       _showModelSelectionSheet(context, state);
                     },
                     child: Container(
+                      width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 15,
-                        vertical: 12,
+                        horizontal: 16,
+                        vertical: 14,
                       ),
                       decoration: BoxDecoration(
                         color: colors.onSurface.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            state.selectedModel == null
-                                ? "Select Model"
-                                : "Models",
+                      child: Text(
+                        state.selectedModel == null ? "Select Model" : "Models",
+                        textAlign: TextAlign.start,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: colors.onSurface,
                               fontSize: 16,
                             ),
-                          ),
-                          Icon(Icons.arrow_drop_down, color: colors.onSurface),
-                        ],
                       ),
                     ),
                   ),
