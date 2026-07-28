@@ -1072,34 +1072,26 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         notifyListeners();
         return;
       }
-
-      final densityText = switch (highlightDensity) {
+      final scaleText = switch (highlightDensity) {
         1 =>
-          "Viral & Punchy: Extract only the most explosive, standalone 'aha!' moments. Think bite-sized, highly distilled micro-clips. Capture the exact punchline or the sudden realization. Strip away all the setup and background context—give me only the purest, most concentrated essence of the point.",
+          "Ruthlessly Selective: Extract only the absolute peak moments. Apply a 10/10 filter. I want only the most profound or critical standalone clips. Leave out everything else.",
         2 =>
-          "Balanced Takeaways: Extract the core thesis points and key supporting examples. These should be concise, highly focused concepts. Cut the long-winded explanations, but leave just enough context so the point makes perfect sense on its own.",
+          "Balanced Narrative: Extract the core story. Select the primary thesis points and key supporting examples. Cut the fluff, but keep enough clips to provide a complete, well-paced summary.",
         _ =>
-          "Comprehensive Deep-Dive: Include all main arguments, nuances, and compelling anecdotes. Clips here can be more expansive and conversational to capture the full weight of detailed explanations, but still trim away obvious dead air.",
+          "Comprehensive Deep-Dive: Err on the side of inclusion. Extract all main arguments, valuable nuances, compelling anecdotes, and detailed explanations. If a moment adds depth, context, or entertainment, include it.",
       };
 
       final prompt =
           """
-You are a master video editor specializing in short-form, high-impact highlight reels.
+You are a master video editor curating a highlight reel. 
 
-Extract isolated, standalone highlight clips from this video. Do not create a
-continuous table of contents; pinpoint specific, highly focused moments of peak
-value.
+Extract isolated, standalone highlight clips from this video. Do not create a continuous table of contents; pinpoint specific moments of peak value.
 
 Rules for Extraction:
-
-1.  Full Timeline Coverage: Ensure selections are drawn from across the entire
-    video.
-2.  Pacing & Format: $densityText
-3.  Aggressive Cropping: Do not include the entire conversational wind-up. Start
-    the clip at the exact moment the speaker gets to the point, and cut it the
-    second the core thought resolves. We want the meat, not the fat.
-4.  Purity: Absolutely no intros, sponsor reads, host transitions, meandering
-    thoughts, or conversational filler.
+1. Full Timeline Coverage: Ensure selections are drawn from across the entire video.
+2. Pacing & Volume: $scaleText
+3. Trimming: Start the clip exactly when the core insight begins, and cut exactly when the point concludes. 
+4. Purity: Skip all intros, sponsor reads, rambling, and conversational filler.
 """;
 
       notifyListeners();
@@ -1142,17 +1134,22 @@ Rules for Extraction:
                     "description":
                         "Punchy 3-5 word title for the highlight clip.",
                   },
+                  "last_spoken_words": {
+                    "type": "STRING",
+                    "description":
+                        "End time in seconds, exactly matching the timestamp of last_spoken_words",
+                  },
                   "start": {
-                    "type": "INTEGER",
+                    "type": "NUMBER",
                     "description":
                         "Start time of the highlight clip in seconds.",
                   },
                   "end": {
-                    "type": "INTEGER",
+                    "type": "NUMBER",
                     "description": "End time of the highlight clip in seconds.",
                   },
                 },
-                "required": ["title", "start", "end"],
+                "required": ["title", "last_spoken_words", "start", "end"],
               },
             },
           },
@@ -1160,77 +1157,12 @@ Rules for Extraction:
         },
       };
 
-      Future<Map<String, dynamic>> callGemini(
-        Map<String, dynamic> payload,
-      ) async {
-        final response = await http.post(
-          Uri.parse(
-            '$_geminiBaseUrl/models/$selectedModel:generateContent?key=$geminiApiKey',
-          ),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(payload),
-        );
-
-        if (response.statusCode != 200) {
-          String errorMessage =
-              'API failed with HTTP status ${response.statusCode}';
-
-          try {
-            if (jsonDecode(response.body) case {
-              'error': {'message': String msg},
-            }) {
-              errorMessage = msg;
-            }
-          } catch (_) {}
-
-          throw HttpException(errorMessage);
-        }
-
-        if (jsonDecode(response.body) case {
-          'candidates': [
-            {'content': {'parts': [{'text': String text}, ...]}},
-            ...,
-          ],
-        }) {
-          final parsed = jsonDecode(text);
-          if (parsed['status'] == 'FAILURE') {
-            throw Exception("Model explicitly returned FAILURE status.");
-          }
-          return parsed;
-        }
-
-        throw Exception(
-          "Could not find generated highlights text in the API response.",
-        );
-      }
-
-      Map<String, dynamic> responseJson;
-
-      try {
-        // 1. Primary Attempt: urlContext
-        responseJson = await callGemini({
-          "contents": [
-            {
-              "role": "user",
-              "parts": [
-                {"text": "$prompt\n\nVideo URL: $videoUrl"},
-              ],
-            },
-          ],
-          "tools": [
-            {"urlContext": {}},
-          ],
-          "generationConfig": generationConfig,
-        });
-      } on HttpException {
-        rethrow;
-      } catch (primaryError) {
-        debugPrint(
-          "Primary approach failed: $primaryError. Falling back to fileUri...",
-        );
-
-        // 2. Failover Attempt: Native fileUri video input
-        responseJson = await callGemini({
+      final response = await http.post(
+        Uri.parse(
+          '$_geminiBaseUrl/models/$selectedModel:generateContent?key=$geminiApiKey',
+        ),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
           "contents": [
             {
               "role": "user",
@@ -1246,9 +1178,43 @@ Rules for Extraction:
             },
           ],
           "generationConfig": generationConfig,
-        });
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        String errorMessage =
+            'API failed with HTTP status ${response.statusCode}';
+
+        try {
+          if (jsonDecode(response.body) case {
+            'error': {'message': String msg},
+          }) {
+            errorMessage = msg;
+          }
+        } catch (_) {}
+
+        throw HttpException(errorMessage);
       }
 
+      Map<String, dynamic> responseJson;
+      if (jsonDecode(response.body) case {
+        'candidates': [
+          {'content': {'parts': [{'text': String text}, ...]}},
+          ...,
+        ],
+      }) {
+        final parsed = jsonDecode(text);
+        if (parsed['status'] == 'FAILURE') {
+          throw Exception("Model explicitly returned FAILURE status.");
+        }
+        responseJson = parsed;
+      } else {
+        throw Exception(
+          "Could not find generated highlights text in the API response.",
+        );
+      }
+
+      debugPrint(responseJson.toString());
       final parsedHighlights = (responseJson['highlights'] as List)
           .map((h) => Highlight.fromJson(Map<String, dynamic>.from(h)))
           .toList();

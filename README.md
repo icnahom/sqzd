@@ -71,18 +71,11 @@ flutter run --profile
 
 ## 🧠 How It Works
 
-We do not use unofficial web-scraping tricks to fetch video transcripts. Instead, we use a **two-tier strategy** with Google's Gemini API:
-
-1. **Primary — URL Context.** The API call includes `urlContext` tool, with the YouTube URL embedded in the prompt text. This lets Gemini fetch and analyze the video content directly.
-
-2. **Failover — Native `fileUri` Input.** If the primary approach fails, we fall back to the official [Gemini Video Understanding API](https://ai.google.dev/gemini-api/docs/video-understanding#youtube) using the `fileUri` method with the video URL.
-
-This ensures compatibility across all Gemini models while preferring the faster, tool-based path when available.
+We do not use unofficial web-scraping tricks to fetch video transcripts. Instead, we use the official [Gemini Video Understanding API](https://ai.google.dev/gemini-api/docs/video-understanding#youtube) using the `fileUri` method with the YouTube video URL.
 
 > [!NOTE]
-> Because the AI model analyzes the video content directly, initial generation can
-> take some time — especially on the `fileUri` fallback path. We hope to transition
-> to an official, fast YouTube Transcript API whenever one becomes publicly available.
+> Because the AI model analyzes the video content directly, initial generation can take some time. We hope to transition to an official, 
+> fast YouTube Transcript API whenever one becomes publicly available.
 
 ## 📁 Why a single `main.dart`?
 
