@@ -649,13 +649,12 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void _updateCachedIndex(int index, {bool isCompleted = false}) {
+  void _updateCachedIndex(int index) {
     if (currentVideoId == null || extractedHighlights.isEmpty) return;
     final key = _getCacheKey(currentVideoId!);
     if (sharedPrefs.getString(key) case final String cachedStr) {
       final data = jsonDecode(cachedStr) as Map<String, dynamic>;
       data['currentIndex'] = index;
-      data['isCompleted'] = isCompleted;
       sharedPrefs.setString(key, jsonEncode(data));
     }
   }
@@ -684,7 +683,6 @@ class AppState extends ChangeNotifier {
     if (sharedPrefs.getString(_getCacheKey(videoId))
         case final String cachedStr) {
       if (jsonDecode(cachedStr) case {
-        'isCompleted': false,
         'currentIndex': int idx,
         'highlights': List highlights,
       } when idx >= 0 && idx < highlights.length) {
@@ -971,7 +969,8 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
     if (currentIndex >= extractedHighlights.length - 1) {
       executeVideoJavascript("v.pause();");
       setPlayState(false);
-      _updateCachedIndex(currentIndex, isCompleted: true);
+      _updateCachedIndex(0);
+      sharedPrefs.remove('last_video_id');
       _showSavedTimeSnackbar();
       await _playSuccessSfx();
     } else {
