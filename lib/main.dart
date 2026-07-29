@@ -1071,7 +1071,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         notifyListeners();
         return;
       }
-      final scaleText = switch (highlightDensity) {
+      final densityText = switch (highlightDensity) {
         1 =>
           "Ruthlessly Selective: Extract only the absolute peak moments. Apply a 10/10 filter. I want only the most profound or critical standalone clips. Leave out everything else.",
         2 =>
@@ -1088,7 +1088,7 @@ Extract isolated, standalone highlight clips from this video. Do not create a co
 
 Rules for Extraction:
 1. Full Timeline Coverage: Ensure selections are drawn from across the entire video.
-2. Pacing & Volume: $scaleText
+2. Pacing & Volume: $densityText
 3. Trimming: Start the clip exactly when the core insight begins, and cut exactly when the point concludes. 
 4. Purity: Skip all intros, sponsor reads, rambling, and conversational filler.
 """;
