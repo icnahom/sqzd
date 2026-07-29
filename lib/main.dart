@@ -473,10 +473,16 @@ class AppState extends ChangeNotifier {
         if (jsonResponse case {'models': List models}) {
           availableModels = [
             for (final m in models)
-              if (m case {
-                'name': String name,
-                'supportedGenerationMethods': List methods,
-              } when methods.contains('generateContent'))
+              if (m
+                  case {
+                    'name': String name,
+                    'supportedGenerationMethods': List methods,
+                  }
+                  when methods.contains('generateContent') &&
+                      !RegExp(
+                        r'image|robotics|computer-use',
+                        caseSensitive: false,
+                      ).hasMatch(name))
                 name.replaceFirst('models/', ''),
           ];
         }
@@ -2152,14 +2158,22 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                         color: colors.onSurface.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text(
-                        state.selectedModel == null ? "Select Model" : "Models",
-                        textAlign: TextAlign.start,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: colors.onSurface,
-                          fontSize: 16,
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            state.selectedModel == null
+                                ? "Select Model"
+                                : "Models",
+                            textAlign: TextAlign.start,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: colors.onSurface,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Icon(Icons.arrow_right, color: colors.onSurface),
+                        ],
                       ),
                     ),
                   ),
