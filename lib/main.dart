@@ -22,6 +22,7 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:retry/retry.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final FlutterLocalNotificationsPlugin localNotifications =
@@ -1149,91 +1150,103 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         }
 
         try {
-          final response = await http.post(
-            Uri.parse(
-              '$_geminiBaseUrl/models/$selectedModel:generateContent?key=$geminiApiKey',
-            ),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              "contents": [
-                {
-                  "role": "user",
-                  "parts": [
+          final response = await retry(
+            () async {
+              final response = await http.post(
+                Uri.parse(
+                  '$_geminiBaseUrl/models/$selectedModel:generateContent?key=$geminiApiKey',
+                ),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode({
+                  "contents": [
                     {
-                      "fileData": {
-                        "mimeType": "video/*",
-                        "fileUri": 'https://www.youtube.com/watch?v=$videoId',
-                      },
-                      if (segments.length > 1)
-                        "videoMetadata": {
-                          "startOffset": {"seconds": segment.start},
-                          "endOffset": {"seconds": segment.end},
-                          "fps": 1,
+                      "role": "user",
+                      "parts": [
+                        {
+                          "fileData": {
+                            "mimeType": "video/*",
+                            "fileUri":
+                                'https://www.youtube.com/watch?v=$videoId',
+                          },
+                          if (segments.length > 1)
+                            "videoMetadata": {
+                              "startOffset": {"seconds": segment.start},
+                              "endOffset": {"seconds": segment.end},
+                              "fps": 1,
+                            },
                         },
+                        {"text": prompt},
+                      ],
                     },
-                    {"text": prompt},
                   ],
-                },
-              ],
-              "generationConfig": {
-                "mediaResolution": "MEDIA_RESOLUTION_LOW",
-                "responseMimeType": "application/json",
-                "responseSchema": {
-                  "type": "OBJECT",
-                  "properties": {
-                    "status": {
-                      "type": "STRING",
-                      "description":
-                          "SUCCESS if the video was successfully analyzed. FAILURE if you could not access or process the video.",
-                      "enum": ["SUCCESS", "FAILURE"],
-                    },
-                    "highlights": {
-                      "type": "ARRAY",
-                      "items": {
-                        "type": "OBJECT",
-                        "properties": {
-                          "title": {
-                            "type": "STRING",
-                            "description":
-                                "Punchy 3-5 word title for the highlight clip.",
-                          },
-                          "last_spoken_words": {
-                            "type": "STRING",
-                            "description":
-                                "The exact, verbatim last 3-5 words spoken aloud before the clip cuts.",
-                          },
-                          "start": {
-                            "type": "NUMBER",
-                            "description":
-                                "Start time of the highlight clip in seconds.",
-                          },
-                          "end": {
-                            "type": "NUMBER",
-                            "description":
-                                "End time in seconds, precisely matching the end of last_spoken_words.",
+                  "generationConfig": {
+                    "mediaResolution": "MEDIA_RESOLUTION_LOW",
+                    "responseMimeType": "application/json",
+                    "responseSchema": {
+                      "type": "OBJECT",
+                      "properties": {
+                        "status": {
+                          "type": "STRING",
+                          "description":
+                              "SUCCESS if the video was successfully analyzed. FAILURE if you could not access or process the video.",
+                          "enum": ["SUCCESS", "FAILURE"],
+                        },
+                        "highlights": {
+                          "type": "ARRAY",
+                          "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                              "title": {
+                                "type": "STRING",
+                                "description":
+                                    "Punchy 3-5 word title for the highlight clip.",
+                              },
+                              "last_spoken_words": {
+                                "type": "STRING",
+                                "description":
+                                    "The exact, verbatim last 3-5 words spoken aloud before the clip cuts.",
+                              },
+                              "start": {
+                                "type": "NUMBER",
+                                "description":
+                                    "Start time of the highlight clip in seconds.",
+                              },
+                              "end": {
+                                "type": "NUMBER",
+                                "description":
+                                    "End time in seconds, precisely matching the end of last_spoken_words.",
+                              },
+                            },
+                            "required": [
+                              "title",
+                              "last_spoken_words",
+                              "start",
+                              "end",
+                            ],
                           },
                         },
-                        "required": [
-                          "title",
-                          "last_spoken_words",
-                          "start",
-                          "end",
-                        ],
                       },
+                      "required": ["status", "highlights"],
                     },
                   },
-                  "required": ["status", "highlights"],
-                },
-              },
-            }),
+                }),
+              );
+              if (response.statusCode != 200) {
+                throw HttpException(switch (jsonDecode(response.body)) {
+                  {'error': {'message': String msg}} =>
+                    '${response.statusCode}: $msg',
+                  _ => 'API failed with HTTP status ${response.statusCode}',
+                });
+              }
+              return response;
+            },
+            retryIf: (e) =>
+                e.toString().contains('429') || e is SocketException,
+            maxAttempts: 3,
+            delayFactor: const Duration(seconds: 30),
+            onRetry: (e) =>
+                debugPrint('Retrying segment ${index + 1} due to: $e'),
           );
-
-          if (response.statusCode != 200) {
-            throw HttpException(switch (jsonDecode(response.body)) {
-              {'error': {'message': String msg}} => msg,
-              _ => 'API failed with HTTP status ${response.statusCode}',
-            });
-          }
 
           final parsed = switch (jsonDecode(response.body)) {
             {'candidates': [{'content': {'parts': [{'text': String text}]}}]} =>
@@ -1313,6 +1326,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
       );
     } catch (e) {
       localNotifications.cancel(id: 888);
+      loadCachedHighlights(videoId);
       onError("Error generating highlights: $e");
     }
 
