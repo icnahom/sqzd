@@ -1058,9 +1058,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
     }
 
     currentVideoId = videoId;
-
     clearHighlights();
-
     isProcessing = true;
     notifyListeners();
 
@@ -1077,29 +1075,6 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         notifyListeners();
         return;
       }
-      final densityText = switch (highlightDensity) {
-        1 =>
-          "Ruthlessly Selective: Extract only the absolute peak moments. Apply a 10/10 filter. I want only the most profound or critical standalone clips. Leave out everything else.",
-        2 =>
-          "Balanced Narrative: Extract the core story. Select the primary thesis points and key supporting examples. Cut the fluff, but keep enough clips to provide a complete, well-paced summary.",
-        _ =>
-          "Comprehensive Deep-Dive: Err on the side of inclusion. Extract all main arguments, valuable nuances, compelling anecdotes, and detailed explanations. If a moment adds depth, context, or entertainment, include it.",
-      };
-
-      final prompt =
-          """
-You are a master video editor curating a highlight reel. 
-
-Extract isolated, standalone highlight clips from this video. Do not create a continuous table of contents; pinpoint specific moments of peak value.
-
-Rules for Extraction:
-1. Full Timeline Coverage: Ensure selections are drawn from across the entire video.
-2. Pacing & Volume: $densityText
-3. Trimming: Start the clip exactly when the core insight begins, and cut exactly when the point concludes. 
-4. Purity: Skip all intros, sponsor reads, rambling, and conversational filler.
-""";
-
-      notifyListeners();
 
       localNotifications.show(
         id: 888,
@@ -1118,114 +1093,185 @@ Rules for Extraction:
         ),
       );
 
-      final generationConfig = {
-        "responseMimeType": "application/json",
-        "responseSchema": {
-          "type": "OBJECT",
-          "properties": {
-            "status": {
-              "type": "STRING",
-              "description":
-                  "SUCCESS if the video was successfully analyzed. FAILURE if you could not access or process the video.",
-              "enum": ["SUCCESS", "FAILURE"],
-            },
-            "highlights": {
-              "type": "ARRAY",
-              "items": {
-                "type": "OBJECT",
-                "properties": {
-                  "title": {
-                    "type": "STRING",
-                    "description":
-                        "Punchy 3-5 word title for the highlight clip.",
-                  },
-                  "last_spoken_words": {
-                    "type": "STRING",
-                    "description":
-                        "The exact, verbatim last 3-5 words spoken aloud before the clip cuts.",
-                  },
-                  "start": {
-                    "type": "NUMBER",
-                    "description":
-                        "Start time of the highlight clip in seconds.",
-                  },
-                  "end": {
-                    "type": "NUMBER",
-                    "description":
-                        "End time in seconds, precisely matching the end of last_spoken_words.",
-                  },
-                },
-                "required": ["title", "last_spoken_words", "start", "end"],
-              },
-            },
-          },
-          "required": ["status", "highlights"],
-        },
+      final densityText = switch (highlightDensity) {
+        1 =>
+          "Ruthlessly Selective: Extract only the absolute peak moments. Apply a 10/10 filter. Leave out everything else.",
+        2 =>
+          "Balanced Narrative: Extract the core story. Select primary thesis points and key supporting examples. Cut the fluff.",
+        _ =>
+          "Comprehensive Deep-Dive: Err on the side of inclusion. Extract all main arguments, nuances, and compelling anecdotes.",
       };
 
-      final response = await http.post(
-        Uri.parse(
-          '$_geminiBaseUrl/models/$selectedModel:generateContent?key=$geminiApiKey',
-        ),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "contents": [
-            {
-              "role": "user",
-              "parts": [
-                {"text": prompt},
-                {
-                  "fileData": {
-                    "mimeType": "video/webm",
-                    "fileUri": 'https://www.youtube.com/watch?v=$videoId',
-                  },
-                },
-              ],
-            },
-          ],
-          "generationConfig": generationConfig,
-        }),
-      );
+      final totalSeconds = totalOriginalDuration.toInt();
+      final maxSeconds = const Duration(hours: 1, minutes: 20).inSeconds;
+      final overlapSeconds = const Duration(minutes: 5).inSeconds;
 
-      if (response.statusCode != 200) {
-        String errorMessage =
-            'API failed with HTTP status ${response.statusCode}';
+      final segments = [
+        for (
+          int s = 0, e = 0;
+          s < totalSeconds;
+          s = e < totalSeconds ? e - overlapSeconds : totalSeconds
+        )
+          (start: s, end: e = math.min(s + maxSeconds, totalSeconds)),
+      ];
+
+      final rules = [
+        if (segments.length == 1)
+          "1. Full Timeline Coverage: Ensure selections are drawn from across the entire video.",
+        "${segments.length == 1 ? '2' : '1'}. Pacing & Volume: $densityText",
+        "${segments.length == 1 ? '3' : '2'}. Trimming: Start exactly when the insight begins, cut when it concludes.",
+        "${segments.length == 1 ? '4' : '3'}. Purity: Skip intros, sponsor reads, and filler.",
+        "${segments.length == 1 ? '5' : '4'}. No Overlaps: ${segments.length == 1 ? 'Ensure no two highlight clips overlap in their timestamps.' : 'Ensure no two highlight clips generated in this response overlap with each other.'}",
+      ].join('\n');
+
+      final basePrompt =
+          "You are a master video editor curating a highlight reel.\nExtract isolated, standalone highlight clips. Pinpoint specific moments of peak value.\n\nRules for Extraction:\n$rules";
+
+      List<Highlight> allParsedHighlights = [];
+
+      for (var (index, segment) in segments.indexed) {
+        String prompt = basePrompt;
+
+        if (segments.length > 1) {
+          final segmentMins = ((segment.end - segment.start) / 60).round();
+          prompt +=
+              "\n\nContext: Total video is ${(totalSeconds / 60).round()} mins. You are analyzing Part ${index + 1} of ${segments.length} (from ${segment.start}s to ${segment.end}s).\n";
+          prompt +=
+              "Pacing: This part is $segmentMins mins long. Maintain strict quality. Extract proportionally.\n";
+
+          if (index > 0 && allParsedHighlights.isNotEmpty) {
+            final last = allParsedHighlights.last;
+            prompt +=
+                "\nOverlap Info: The previous part's final highlight was \"${last.title}\" (from ${last.start}s to ${last.end}s). ";
+            prompt +=
+                "If it was cut off, output the full corrected version starting at exactly ${last.start}s. Otherwise, only extract new highlights starting after ${last.end}s.";
+          }
+        }
 
         try {
-          if (jsonDecode(response.body) case {
-            'error': {'message': String msg},
-          }) {
-            errorMessage = msg;
+          final response = await http.post(
+            Uri.parse(
+              '$_geminiBaseUrl/models/$selectedModel:generateContent?key=$geminiApiKey',
+            ),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              "contents": [
+                {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "fileData": {
+                        "mimeType": "video/*",
+                        "fileUri": 'https://www.youtube.com/watch?v=$videoId',
+                      },
+                      if (segments.length > 1)
+                        "videoMetadata": {
+                          "startOffset": {"seconds": segment.start},
+                          "endOffset": {"seconds": segment.end},
+                          "fps": 1,
+                        },
+                    },
+                    {"text": prompt},
+                  ],
+                },
+              ],
+              "generationConfig": {
+                "mediaResolution": "MEDIA_RESOLUTION_LOW",
+                "responseMimeType": "application/json",
+                "responseSchema": {
+                  "type": "OBJECT",
+                  "properties": {
+                    "status": {
+                      "type": "STRING",
+                      "description":
+                          "SUCCESS if the video was successfully analyzed. FAILURE if you could not access or process the video.",
+                      "enum": ["SUCCESS", "FAILURE"],
+                    },
+                    "highlights": {
+                      "type": "ARRAY",
+                      "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                          "title": {
+                            "type": "STRING",
+                            "description":
+                                "Punchy 3-5 word title for the highlight clip.",
+                          },
+                          "last_spoken_words": {
+                            "type": "STRING",
+                            "description":
+                                "The exact, verbatim last 3-5 words spoken aloud before the clip cuts.",
+                          },
+                          "start": {
+                            "type": "NUMBER",
+                            "description":
+                                "Start time of the highlight clip in seconds.",
+                          },
+                          "end": {
+                            "type": "NUMBER",
+                            "description":
+                                "End time in seconds, precisely matching the end of last_spoken_words.",
+                          },
+                        },
+                        "required": [
+                          "title",
+                          "last_spoken_words",
+                          "start",
+                          "end",
+                        ],
+                      },
+                    },
+                  },
+                  "required": ["status", "highlights"],
+                },
+              },
+            }),
+          );
+
+          if (response.statusCode != 200) {
+            throw HttpException(switch (jsonDecode(response.body)) {
+              {'error': {'message': String msg}} => msg,
+              _ => 'API failed with HTTP status ${response.statusCode}',
+            });
           }
-        } catch (_) {}
 
-        throw HttpException(errorMessage);
-      }
+          final parsed = switch (jsonDecode(response.body)) {
+            {'candidates': [{'content': {'parts': [{'text': String text}]}}]} =>
+              jsonDecode(text),
+            _ => throw Exception(
+              "Could not find generated highlights text in API response.",
+            ),
+          };
 
-      Map<String, dynamic> responseJson;
-      if (jsonDecode(response.body) case {
-        'candidates': [
-          {'content': {'parts': [{'text': String text}, ...]}},
-          ...,
-        ],
-      }) {
-        final parsed = jsonDecode(text);
-        if (parsed['status'] == 'FAILURE') {
-          throw Exception("Model explicitly returned FAILURE status.");
+          if (parsed case {'status': 'FAILURE'}) {
+            throw Exception("Model returned FAILURE status.");
+          }
+
+          if (parsed case {'highlights': List rawHighlights}) {
+            for (final h in rawHighlights.map(
+              (e) => Highlight.fromJson(Map<String, dynamic>.from(e)),
+            )) {
+              allParsedHighlights
+                ..removeWhere(
+                  (existing) =>
+                      h.start < existing.end && h.end > existing.start,
+                )
+                ..add(h);
+            }
+          }
+
+          allParsedHighlights.sort((a, b) => a.start.compareTo(b.start));
+        } catch (e) {
+          if (allParsedHighlights.isNotEmpty) {
+            onError(
+              "Warning: Failed processing part ${index + 1} of ${segments.length} ($e). Showing highlights extracted so far.",
+            );
+            break;
+          } else {
+            rethrow;
+          }
         }
-        responseJson = parsed;
-      } else {
-        throw Exception(
-          "Could not find generated highlights text in the API response.",
-        );
       }
-
-      debugPrint(responseJson.toString());
-      final parsedHighlights = (responseJson['highlights'] as List)
-          .map((h) => Highlight.fromJson(Map<String, dynamic>.from(h)))
-          .toList();
-
-      parsedHighlights.sort((a, b) => a.start.compareTo(b.start));
 
       sharedPrefs.setString(
         _getCacheKey(videoId),
@@ -1234,12 +1280,11 @@ Rules for Extraction:
           "duration": totalOriginalDuration,
           "density": highlightDensity,
           "currentIndex": 0,
-          "highlights": parsedHighlights.map((h) => h.toJson()).toList(),
+          "highlights": allParsedHighlights.map((h) => h.toJson()).toList(),
         }),
       );
 
       localNotifications.cancel(id: 888);
-
       if (isAppInBackground) {
         localNotifications.show(
           id: 889,
@@ -1262,7 +1307,7 @@ Rules for Extraction:
       }
 
       _applyHighlights(
-        parsedHighlights,
+        allParsedHighlights,
         autoplay: !isAppInBackground,
         onSuccess: onSuccess,
       );
