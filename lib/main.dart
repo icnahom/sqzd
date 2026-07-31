@@ -1120,7 +1120,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         if (segments.length == 1)
           "1. Full Timeline Coverage: Ensure selections are drawn from across the entire video.",
         "${segments.length == 1 ? '2' : '1'}. Pacing & Volume: $densityText",
-        "${segments.length == 1 ? '3' : '2'}. Trimming: Start exactly when the insight begins, cut when it concludes.",
+        "${segments.length == 1 ? '3' : '2'}. Trimming: Start on the first word. Cut on the natural breath/pause after the point. Never bleed into the next topic.",
         "${segments.length == 1 ? '4' : '3'}. Purity: Skip intros, sponsor reads, and filler.",
         "${segments.length == 1 ? '5' : '4'}. No Overlaps: ${segments.length == 1 ? 'Ensure no two highlight clips overlap in their timestamps.' : 'Ensure no two highlight clips generated in this response overlap with each other.'}",
       ].join('\n');
@@ -1204,7 +1204,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
                               "last_spoken_words": {
                                 "type": "STRING",
                                 "description":
-                                    "The exact, verbatim last 3-5 words spoken aloud before the clip cuts.",
+                                    "The exact last 3-5 words spoken before an audible pause or breath.",
                               },
                               "start": {
                                 "type": "NUMBER",
@@ -1214,7 +1214,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
                               "end": {
                                 "type": "NUMBER",
                                 "description":
-                                    "End time in seconds, precisely matching the end of last_spoken_words.",
+                                    "End time in seconds, precisely matching the pause after last_spoken_words.",
                               },
                             },
                             "required": [
