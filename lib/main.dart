@@ -980,6 +980,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
       sharedPrefs.remove('last_video_id');
       _showSavedTimeSnackbar();
       await _playSuccessSfx();
+      await audioHandler.stop();
     } else {
       await seekToHighlight(currentIndex + 1, highlightEnded: true);
     }
@@ -1822,6 +1823,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
     if (state == AppLifecycleState.resumed) {
       appState.isAppInBackground = false;
       appState.webViewController?.resume();
+      localNotifications.cancel(id: 889);
 
       // Restore video rendering when user opens the app back up
       appState.executeVideoJavascript("""
