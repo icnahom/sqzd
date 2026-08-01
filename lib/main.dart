@@ -18,6 +18,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -223,6 +224,7 @@ class AppState extends ChangeNotifier {
 
   final SoLoud soLoud = SoLoud.instance;
   final DefaultCacheManager cacheManager = DefaultCacheManager();
+  final FlutterTts flutterTts = FlutterTts();
 
   SoundHandle? _activeTtsHandle;
   bool _isTtsPlaying = false;
@@ -848,7 +850,9 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
     });
 
     try {
-      final streamedResponse = await client.send(request);
+      final streamedResponse = await client
+          .send(request)
+          .timeout(const Duration(seconds: 8));
       if (streamedResponse.statusCode != 200) {
         throw Exception("TTS Streaming Error: ${streamedResponse.statusCode}");
       }
@@ -856,7 +860,8 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
       await for (final line
           in streamedResponse.stream
               .transform(utf8.decoder)
-              .transform(const LineSplitter())) {
+              .transform(const LineSplitter())
+              .timeout(const Duration(seconds: 8))) {
         const ssePrefix = 'data: ';
         if (line.startsWith(ssePrefix)) {
           final jsonString = line.substring(ssePrefix.length);
@@ -947,13 +952,24 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
             );
           }
         }
+
+        // ON-DEVICE FALLBACK
+        if (hasError) {
+          if (_activeTtsHandle != null) soLoud.stop(_activeTtsHandle!);
+          try {
+            soLoud.disposeSource(audioSource);
+          } catch (_) {}
+
+          if (_isTtsPlaying && mySessionId == _highlightSessionId) {
+            await flutterTts.awaitSpeakCompletion(true);
+            await flutterTts.speak(text);
+          }
+          return;
+        }
       }
 
-      while (_isTtsPlaying &&
-          mySessionId == _highlightSessionId &&
-          _activeTtsHandle != null &&
-          soLoud.getIsValidVoiceHandle(_activeTtsHandle!)) {
-        await Future.delayed(const Duration(milliseconds: 100));
+      if (mySessionId == _highlightSessionId && _isTtsPlaying) {
+        await audioSource.allInstancesFinished.first;
       }
 
       try {
@@ -963,9 +979,6 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
     } catch (e) {
       debugPrint("TTS Audio Setup Error: $e");
       _setTtsLoading(false, mySessionId);
-      if (_isTtsPlaying && mySessionId == _highlightSessionId) {
-        await Future.delayed(const Duration(seconds: 2));
-      }
     }
   }
 
