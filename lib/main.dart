@@ -1121,8 +1121,8 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         if (segments.length == 1)
           "1. Full Timeline Coverage: Ensure selections are drawn from across the entire video.",
         "${segments.length == 1 ? '2' : '1'}. Pacing & Volume: $densityText",
-        "${segments.length == 1 ? '3' : '2'}. Trimming: Start on the first word. Cut on the natural breath/pause after the point. Never bleed into the next topic.",
-        "${segments.length == 1 ? '4' : '3'}. Purity: Skip intros, sponsor reads, and filler.",
+        "${segments.length == 1 ? '3' : '2'}. Trimming: Start precisely at the beginning of the thought. Cut on the natural breath/pause after the point. Never bleed into the next topic.",
+        "${segments.length == 1 ? '4' : '3'}. Purity: Skip teasers,intros, sponsor reads, and filler.",
         "${segments.length == 1 ? '5' : '4'}. No Overlaps: ${segments.length == 1 ? 'Ensure no two highlight clips overlap in their timestamps.' : 'Ensure no two highlight clips generated in this response overlap with each other.'}",
       ].join('\n');
 
@@ -1139,14 +1139,14 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
           prompt +=
               "\n\nContext: Total video is ${(totalSeconds / 60).round()} mins. You are analyzing Part ${index + 1} of ${segments.length} (from ${segment.start}s to ${segment.end}s).\n";
           prompt +=
-              "Pacing: This part is $segmentMins mins long. Maintain strict quality. Extract proportionally.\n";
+              "Pacing: Scan the entire $segmentMins minutes. Do not cluster all highlights at the beginning of the segment.\n";
 
           if (index > 0 && allParsedHighlights.isNotEmpty) {
             final last = allParsedHighlights.last;
             prompt +=
                 "\nOverlap Info: The previous part's final highlight was \"${last.title}\" (from ${last.start}s to ${last.end}s). ";
             prompt +=
-                "If it was cut off, output the full corrected version starting at exactly ${last.start}s. Otherwise, only extract new highlights starting after ${last.end}s.";
+                "If that specific moment continues into this new segment, output the FULL corrected clip starting at exactly ${last.start}s. If that moment is already finished, only extract entirely NEW highlights that start after ${last.end}s.";
           }
         }
 
