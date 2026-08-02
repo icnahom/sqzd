@@ -2479,14 +2479,13 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    if (state.extractedHighlights.isNotEmpty && _pageController.hasClients) {
+    if (state.extractedHighlights.isNotEmpty) {
       final targetPage = state.currentHighlightIndex;
-      final currentPage = _pageController.page?.round() ?? 0;
-
-      if (currentPage != targetPage && !_isPageAnimating) {
-        _isPageAnimating = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_pageController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients && !_isPageAnimating) {
+          final currentPage = _pageController.page?.round() ?? 0;
+          if (currentPage != targetPage) {
+            _isPageAnimating = true;
             _pageController
                 .animateToPage(
                   targetPage,
@@ -2496,11 +2495,9 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                 .then((_) {
                   _isPageAnimating = false;
                 });
-          } else {
-            _isPageAnimating = false;
           }
-        });
-      }
+        }
+      });
     }
 
     final highlightStart = state.extractedHighlights.isNotEmpty
