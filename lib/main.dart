@@ -1342,6 +1342,27 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
       localNotifications.cancel(id: 888);
       loadCachedHighlights(videoId);
       onError("Error generating highlights: $e");
+
+      if (isAppInBackground) {
+        localNotifications.show(
+          id: 890,
+          title: 'Highlight Generation Failed',
+          body: 'Could not generate highlights.',
+          notificationDetails: const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'sqzd_gen_error',
+              'Highlight Generation Error',
+              importance: Importance.high,
+              priority: Priority.high,
+              playSound: true,
+            ),
+            iOS: DarwinNotificationDetails(
+              presentSound: true,
+              presentAlert: true,
+            ),
+          ),
+        );
+      }
     }
 
     isProcessing = false;
@@ -1837,6 +1858,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
       appState.isAppInBackground = false;
       appState.webViewController?.resume();
       localNotifications.cancel(id: 889);
+      localNotifications.cancel(id: 890);
 
       // Restore video rendering when user opens the app back up
       appState.executeVideoJavascript("""
