@@ -1112,9 +1112,9 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         1 =>
           "Ruthlessly Selective: Extract only the absolute peak moments. Apply a 10/10 filter. Leave out everything else.",
         2 =>
-          "Balanced Narrative: Extract the core story. Select primary thesis points and key supporting examples. Cut the fluff.",
-        _ =>
           "Comprehensive Deep-Dive: Err on the side of inclusion. Extract all main arguments, nuances, and compelling anecdotes.",
+        _ =>
+          "Panoramic Coverage: Map out the complete journey of ideas. Ensure absolutely every major topic, theme, and narrative shift is anchored by a highlight. Leave no part of the conversation undocumented.",
       };
 
       final totalSeconds = totalOriginalDuration.toInt();
