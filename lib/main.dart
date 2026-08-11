@@ -905,6 +905,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
       );
 
       if (fileInfo != null) {
+        await Future.delayed(Duration(milliseconds: 1700));
         _setTtsLoading(false, mySessionId);
         final bytes = await fileInfo.file.readAsBytes();
         soLoud.addAudioDataStream(audioSource, bytes);
@@ -976,6 +977,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         soLoud.disposeSource(audioSource);
       } catch (_) {}
       if (mySessionId == _highlightSessionId) _activeTtsHandle = null;
+      await Future.delayed(Duration(milliseconds: 1700));
     } catch (e) {
       debugPrint("TTS Audio Setup Error: $e");
       _setTtsLoading(false, mySessionId);
