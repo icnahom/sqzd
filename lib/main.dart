@@ -1801,7 +1801,16 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
     pullToRefreshController = PullToRefreshController(
       settings: PullToRefreshSettings(color: Colors.greenAccent),
       onRefresh: () async {
-        context.read<AppState>().webViewController?.reload();
+        final appState = context.read<AppState>();
+
+        appState.setPlayState(false);
+
+        final lastVideoUrl = appState.getLastVideo();
+        if (lastVideoUrl != null && appState.extractedHighlights.isNotEmpty) {
+          appState.handleSharedUrl(lastVideoUrl);
+        } else {
+          appState.webViewController?.reload();
+        }
       },
     );
 
