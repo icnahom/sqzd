@@ -1349,7 +1349,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         localNotifications.show(
           id: 890,
           title: 'Highlight Generation Failed',
-          body: 'Could not generate highlights.',
+          body: 'Could not generate highlights. Tap to retry.',
           notificationDetails: const NotificationDetails(
             android: AndroidNotificationDetails(
               'sqzd_gen_error',
@@ -1394,10 +1394,10 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
     _updateAudioPlaybackState();
 
     if (onSuccess != null) onSuccess();
-    _tryInjectJS(autoplay: autoplay);
+    tryInjectJS(autoplay: autoplay);
   }
 
-  Future<void> _tryInjectJS({bool autoplay = true}) async {
+  Future<void> tryInjectJS({bool autoplay = true}) async {
     if (extractedHighlights.isEmpty) return;
 
     final result = await webViewController?.callAsyncJavaScript(
@@ -2300,7 +2300,14 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                           state.generateHighlights(
                             url.toString(),
                             forceRegenerate: forceRegenerate,
-                            onError: _showErrorSnackbar,
+                            onError: (msg) => _showErrorSnackbar(
+                              msg,
+                              onRetry: () => state.generateHighlights(
+                                url.toString(),
+                                forceRegenerate: forceRegenerate,
+                                onError: _showErrorSnackbar,
+                              ),
+                            ),
                           );
                         } else {
                           _showErrorSnackbar(
@@ -2466,18 +2473,27 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
     });
   }
 
-  void _showErrorSnackbar(String message) {
+  void _showErrorSnackbar(String message, {VoidCallback? onRetry}) {
     final theme = Theme.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: TextStyle(color: theme.colorScheme.onError),
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            message,
+            style: TextStyle(color: theme.colorScheme.onError),
+          ),
+          backgroundColor: theme.colorScheme.error,
+          duration: const Duration(seconds: 6),
+          action: onRetry == null
+              ? null
+              : SnackBarAction(
+                  label: 'Retry',
+                  textColor: theme.colorScheme.onError,
+                  onPressed: onRetry,
+                ),
         ),
-        backgroundColor: theme.colorScheme.error,
-        duration: const Duration(seconds: 4),
-      ),
-    );
+      );
   }
 
   Future<void> _onWillPop(AppState state) async {
