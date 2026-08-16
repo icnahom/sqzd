@@ -1476,9 +1476,16 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
           }
 
           if (parsed case {'highlights': List rawHighlights}) {
-            for (final h in rawHighlights.map(
-              (e) => Highlight.fromJson(Map<String, dynamic>.from(e)),
-            )) {
+            final validHighlights = rawHighlights
+                .map((e) => Highlight.fromJson(Map<String, dynamic>.from(e)))
+                .where(
+                  (h) =>
+                      h.start < totalSeconds &&
+                      h.end <= totalSeconds &&
+                      h.start < h.end,
+                );
+
+            for (final h in validHighlights) {
               allParsedHighlights
                 ..removeWhere(
                   (existing) =>
