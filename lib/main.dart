@@ -1157,7 +1157,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
           _activeTtsHandle = null;
 
           if (_isTtsPlaying && mySessionId == _highlightSessionId) {
-            final ok = await _playVitsTts(text, mySessionId);
+            final ok = await _playVitsTts('$text.', mySessionId);
             // VITS itself failed to init/play — nothing further to try.
             if (!ok) {
               _setTtsLoading(false, mySessionId);
