@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -18,7 +19,9 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'package:archive/archive.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sherpa_onnx/sherpa_onnx.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
@@ -224,12 +227,15 @@ class AppState extends ChangeNotifier {
 
   final SoLoud soLoud = SoLoud.instance;
   final DefaultCacheManager cacheManager = DefaultCacheManager();
-  final FlutterTts flutterTts = FlutterTts();
 
   SoundHandle? _activeTtsHandle;
   bool _isTtsPlaying = false;
   bool get isTtsPlaying => _isTtsPlaying;
   bool isTtsLoading = false;
+
+  bool _isVitsReady = false;
+  SendPort? _ttsCommandPort;
+  bool _isTtsWorkerReady = false;
 
   int _highlightSessionId = 0;
 
@@ -242,6 +248,7 @@ class AppState extends ChangeNotifier {
     _loadCachedPreferences();
     _cleanupExpiredCaches();
     _setupAudioHandler();
+    _initVitsModel();
   }
 
   void _loadCachedPreferences() {
@@ -766,6 +773,193 @@ class AppState extends ChangeNotifier {
     _updateAudioPlaybackState();
   }
 
+  Future<void> _initVitsModel() async {
+    try {
+      final docDir = await getApplicationDocumentsDirectory();
+      final modelDir = Directory('${docDir.path}/vits-inflect-en-nano-v2');
+
+      if (!modelDir.existsSync() ||
+          !File('${modelDir.path}/model.onnx').existsSync()) {
+        modelDir.createSync(recursive: true);
+
+        final manifest = await rootBundle.loadString(
+          'assets/models/vits-inflect-en-nano-v2/filelist.txt',
+        );
+        final files = manifest
+            .split('\n')
+            .map((f) => f.trim())
+            .where((f) => f.isNotEmpty);
+
+        for (final relPath in files) {
+          final byteData = await rootBundle.load(
+            'assets/models/vits-inflect-en-nano-v2/$relPath',
+          );
+
+          if (relPath == 'espeak-ng-data.tar.gz') {
+            await _extractEspeakData(byteData.buffer.asUint8List(), modelDir);
+            continue;
+          }
+
+          final file = File('${modelDir.path}/$relPath');
+          await file.parent.create(recursive: true);
+          await file.writeAsBytes(byteData.buffer.asUint8List());
+        }
+      }
+
+      _isVitsReady = true;
+      await _startTtsWorker(modelDir.path);
+    } catch (e) {
+      debugPrint("VITS model init error: $e");
+      _isVitsReady = false;
+    }
+  }
+
+  Future<void> _extractEspeakData(Uint8List gzBytes, Directory modelDir) async {
+    final tarBytes = GZipDecoder().decodeBytes(gzBytes);
+    final archive = TarDecoder().decodeBytes(tarBytes);
+
+    for (final file in archive) {
+      if (!file.isFile) continue;
+      final outFile = File('${modelDir.path}/${file.name}');
+      await outFile.parent.create(recursive: true);
+      await outFile.writeAsBytes(file.content as List<int>);
+    }
+  }
+
+  Future<void> _startTtsWorker(String modelDirPath) async {
+    final initPort = ReceivePort();
+    await Isolate.spawn(_vitsTtsWorker, (initPort.sendPort, modelDirPath));
+    _ttsCommandPort = await initPort.first as SendPort;
+    _isTtsWorkerReady = true;
+  }
+
+  static void _vitsTtsWorker((SendPort, String) args) {
+    final (mainSendPort, modelDirPath) = args;
+
+    try {
+      initBindings(); // sherpa-onnx native bindings are per-isolate
+
+      final config = OfflineTtsConfig(
+        model: OfflineTtsModelConfig(
+          debug: false,
+          numThreads: math.max(1, Platform.numberOfProcessors - 1),
+          vits: OfflineTtsVitsModelConfig(
+            model: '$modelDirPath/model.onnx',
+            tokens: '$modelDirPath/tokens.txt',
+            dataDir: '$modelDirPath/espeak-ng-data',
+          ),
+        ),
+      );
+
+      final tts = OfflineTts(config);
+
+      final commandPort = ReceivePort();
+      mainSendPort.send(commandPort.sendPort);
+
+      commandPort.listen((message) {
+        final (String text, SendPort replyPort) = message as (String, SendPort);
+
+        try {
+          replyPort.send(tts.sampleRate); // send sample rate first
+
+          tts.generateWithCallback(
+            text: text,
+            sid: 0,
+            speed: 1.0,
+            callback: (samples) {
+              if (samples.isNotEmpty) {
+                replyPort.send(Float32List.fromList(samples));
+              }
+              return 0;
+            },
+          );
+
+          replyPort.send('done');
+        } catch (e) {
+          replyPort.send('error: $e');
+        }
+      });
+    } catch (e) {
+      debugPrint("Failed to initialize TTS worker: $e");
+    }
+  }
+
+  Future<bool> _playVitsTts(String text, int mySessionId) async {
+    if (!_isVitsReady || !_isTtsWorkerReady || _ttsCommandPort == null) {
+      return false;
+    }
+    if (!(_isTtsPlaying && mySessionId == _highlightSessionId)) return false;
+
+    try {
+      final streamPort = ReceivePort();
+      _ttsCommandPort!.send((text, streamPort.sendPort));
+
+      AudioSource? audioSource;
+      var hasStartedPlaying = false;
+      var vitsError = false;
+
+      await for (final message in streamPort) {
+        switch (message) {
+          case int sampleRate:
+            audioSource = soLoud.setBufferStream(
+              bufferingType: BufferingType.released,
+              channels: Channels.mono,
+              sampleRate: sampleRate,
+              format: BufferType.f32le,
+            );
+            break;
+          case Float32List samples:
+            if (audioSource == null) break;
+            soLoud.addAudioDataStream(
+              audioSource,
+              samples.buffer.asUint8List(),
+            );
+            if (!hasStartedPlaying) {
+              hasStartedPlaying = true;
+              _setTtsLoading(false, mySessionId);
+              soLoud.play(audioSource).then((h) => _activeTtsHandle = h);
+            }
+            break;
+          case 'done':
+            if (audioSource != null) soLoud.setDataIsEnded(audioSource);
+            streamPort.close();
+            break;
+          case String error when error.startsWith('error:'):
+            debugPrint(error);
+            vitsError = true;
+            if (audioSource != null) soLoud.setDataIsEnded(audioSource);
+            streamPort.close();
+            break;
+        }
+        if (vitsError) break;
+      }
+
+      if (vitsError) {
+        if (_activeTtsHandle != null) soLoud.stop(_activeTtsHandle!);
+        if (audioSource != null) {
+          try {
+            soLoud.disposeSource(audioSource);
+          } catch (_) {}
+        }
+        _setTtsLoading(false, mySessionId);
+        return false;
+      }
+
+      if (mySessionId == _highlightSessionId && _isTtsPlaying) {
+        await audioSource?.allInstancesFinished.first;
+      }
+      try {
+        if (audioSource != null) soLoud.disposeSource(audioSource);
+      } catch (_) {}
+      if (mySessionId == _highlightSessionId) _activeTtsHandle = null;
+      return true;
+    } catch (e) {
+      debugPrint("VITS stream error: $e");
+      _setTtsLoading(false, mySessionId);
+      return false;
+    }
+  }
+
   Stream<Uint8List> _streamSpeech(String text) async* {
     if (geminiApiKey == null) return;
 
@@ -960,10 +1154,15 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
           try {
             soLoud.disposeSource(audioSource);
           } catch (_) {}
+          _activeTtsHandle = null;
 
           if (_isTtsPlaying && mySessionId == _highlightSessionId) {
-            await flutterTts.awaitSpeakCompletion(true);
-            await flutterTts.speak(text);
+            final ok = await _playVitsTts(text, mySessionId);
+            // VITS itself failed to init/play — nothing further to try.
+            if (!ok) {
+              _setTtsLoading(false, mySessionId);
+            }
+            await Future.delayed(Duration(milliseconds: 1700));
           }
           return;
         }
