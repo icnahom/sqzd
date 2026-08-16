@@ -2040,6 +2040,9 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
 
       if (match != null) {
         final url = match.group(0)!;
+
+        if (!mounted) return;
+
         final appState = context.read<AppState>();
 
         if (appState.webViewController != null) {
@@ -2364,10 +2367,8 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
     );
   }
 
-  void _showGenerateSheet(
-    BuildContext context, {
-    bool forceRegenerate = false,
-  }) {
+  void _showGenerateSheet({bool forceRegenerate = false}) {
+    if (!mounted) return;
     final state = context.read<AppState>();
 
     if (state.geminiApiKey == null || state.geminiApiKey!.isEmpty) {
@@ -2376,8 +2377,8 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
         state,
         onSuccess: () {
           Future.delayed(const Duration(milliseconds: 300), () {
-            if (context.mounted) {
-              _showGenerateSheet(context, forceRegenerate: forceRegenerate);
+            if (mounted) {
+              _showGenerateSheet(forceRegenerate: forceRegenerate);
             }
           });
         },
@@ -2385,7 +2386,6 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
       return;
     }
 
-    final screenContext = context;
     _showCustomBottomSheet(context, (ctx) {
       final theme = Theme.of(ctx);
       final colors = theme.colorScheme;
@@ -2421,7 +2421,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                     children: [
                       Expanded(
                         child: _buildDensityOption(
-                          context,
+                          ctx,
                           state,
                           1,
                           "Short",
@@ -2431,7 +2431,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildDensityOption(
-                          context,
+                          ctx,
                           state,
                           2,
                           "Medium",
@@ -2441,7 +2441,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildDensityOption(
-                          context,
+                          ctx,
                           state,
                           3,
                           "Detailed",
@@ -2453,7 +2453,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                   const SizedBox(height: 20),
                   GestureDetector(
                     onTap: () {
-                      _showModelSelectionSheet(context, state);
+                      _showModelSelectionSheet(this.context, state);
                     },
                     child: Container(
                       width: double.infinity,
@@ -2495,24 +2495,28 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                       onPressed: () async {
                         final navigator = Navigator.of(ctx);
                         final url = await state.webViewController?.getUrl();
+                        if (!ctx.mounted) return;
+
                         if (url != null) {
                           navigator.pop();
                           state.generateHighlights(
                             url.toString(),
                             forceRegenerate: forceRegenerate,
-                            onError: (msg) => _showErrorSnackbar(
-                              screenContext,
-                              msg,
-                              onRetry: () => _showGenerateSheet(
-                                screenContext,
-                                forceRegenerate: forceRegenerate,
-                              ),
-                            ),
+                            onError: (msg) {
+                              _showErrorSnackbar(
+                                msg,
+                                onRetry: () {
+                                  if (!mounted) return;
+                                  _showGenerateSheet(
+                                    forceRegenerate: forceRegenerate,
+                                  );
+                                },
+                              );
+                            },
                           );
                         } else {
+                          navigator.pop();
                           _showErrorSnackbar(
-                            // ignore: use_build_context_synchronously
-                            screenContext,
                             "Error: Could not retrieve current URL.",
                           );
                         }
@@ -2547,10 +2551,11 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
           if (lastScrolledIndex != state.currentHighlightIndex &&
               state.extractedHighlights.isNotEmpty) {
             lastScrolledIndex = state.currentHighlightIndex;
+            final screenWidth = MediaQuery.sizeOf(ctx).width;
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (scrollController.hasClients) {
+              if (!ctx.mounted || !scrollController.hasClients) return;
+              {
                 const itemWidth = 180.0;
-                final screenWidth = MediaQuery.of(ctx).size.width;
                 var offset =
                     (lastScrolledIndex * itemWidth) -
                     (screenWidth / 2) +
@@ -2595,7 +2600,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                           tooltip: "Regenerate",
                           onPressed: () {
                             Navigator.pop(ctx);
-                            _showGenerateSheet(context, forceRegenerate: true);
+                            _showGenerateSheet(forceRegenerate: true);
                           },
                         ),
                       ],
@@ -2675,15 +2680,13 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
     });
   }
 
-  void _showErrorSnackbar(
-    BuildContext context,
-    String message, {
-    VoidCallback? onRetry,
-  }) {
-    if (!mounted) return;
+  void _showErrorSnackbar(String message, {VoidCallback? onRetry}) {
+    final context = scaffoldMessengerKey.currentContext;
+    if (context == null) return;
+
     final theme = Theme.of(context);
-    ScaffoldMessenger.of(context)
-      ..clearSnackBars()
+    scaffoldMessengerKey.currentState
+      ?..clearSnackBars()
       ..showSnackBar(
         SnackBar(
           content: Text(
@@ -2704,8 +2707,8 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
   }
 
   Future<void> _onWillPop(AppState state) async {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final canGoBack = await state.webViewController?.canGoBack() ?? false;
+    if (!mounted) return;
     if (canGoBack) {
       state.webViewController?.goBack();
       return;
@@ -2720,7 +2723,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
       SystemNavigator.pop();
     } else {
       _lastPressedAt = now;
-      scaffoldMessenger.showSnackBar(
+      scaffoldMessengerKey.currentState?.showSnackBar(
         const SnackBar(
           content: Text("Tap again to exit"),
           duration: Duration(seconds: 2),
@@ -2907,7 +2910,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                               "Generate Highlights",
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            onPressed: () => _showGenerateSheet(context),
+                            onPressed: () => _showGenerateSheet(),
                           ),
                         ),
                       ),
