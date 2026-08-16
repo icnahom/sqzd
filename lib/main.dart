@@ -2392,6 +2392,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
       return;
     }
 
+    final screenContext = context;
     _showCustomBottomSheet(context, (ctx) {
       final theme = Theme.of(ctx);
       final colors = theme.colorScheme;
@@ -2507,15 +2508,17 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                             url.toString(),
                             forceRegenerate: forceRegenerate,
                             onError: (msg) => _showErrorSnackbar(
+                              screenContext,
                               msg,
                               onRetry: () => _showGenerateSheet(
-                                context,
+                                screenContext,
                                 forceRegenerate: forceRegenerate,
                               ),
                             ),
                           );
                         } else {
                           _showErrorSnackbar(
+                            screenContext,
                             "Error: Could not retrieve current URL.",
                           );
                         }
@@ -2678,7 +2681,12 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
     });
   }
 
-  void _showErrorSnackbar(String message, {VoidCallback? onRetry}) {
+  void _showErrorSnackbar(
+    BuildContext context,
+    String message, {
+    VoidCallback? onRetry,
+  }) {
+    if (!mounted) return;
     final theme = Theme.of(context);
     ScaffoldMessenger.of(context)
       ..clearSnackBars()
@@ -2693,7 +2701,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
           action: onRetry == null
               ? null
               : SnackBarAction(
-                  label: 'Retry',
+                  label: 'Try Again',
                   textColor: theme.colorScheme.onError,
                   onPressed: onRetry,
                 ),
