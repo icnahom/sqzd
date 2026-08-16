@@ -64,7 +64,7 @@ void main(List<String> args) async {
 
       if (espeakArchive.isNotEmpty) {
         final tar = TarEncoder().encode(espeakArchive);
-        final gz = GZipEncoder().encode(tar)!;
+        final gz = GZipEncoder().encode(tar);
         File('${assetDir.path}/espeak-ng-data.tar.gz').writeAsBytesSync(gz);
         fileList.add('espeak-ng-data.tar.gz');
       }

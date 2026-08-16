@@ -917,7 +917,7 @@ class AppState extends ChangeNotifier {
             if (!hasStartedPlaying) {
               hasStartedPlaying = true;
               _setTtsLoading(false, mySessionId);
-              soLoud.play(audioSource).then((h) => _activeTtsHandle = h);
+              _activeTtsHandle = soLoud.play(audioSource);
             }
             break;
           case 'done':
@@ -1106,10 +1106,10 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
         soLoud.setDataIsEnded(audioSource);
 
         if (mySessionId != _highlightSessionId) return;
-        _activeTtsHandle = await soLoud.play(audioSource);
+        _activeTtsHandle = soLoud.play(audioSource);
       } else {
         if (mySessionId != _highlightSessionId) return;
-        _activeTtsHandle = await soLoud.play(audioSource);
+        _activeTtsHandle = soLoud.play(audioSource);
 
         final audioChunks = BytesBuilder();
         var isSourceEnded = false;
@@ -1234,7 +1234,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
       _transitionSfxSource ??= await soLoud.loadAsset(
         'assets/sfx/kauasilbershlachparodes-shutter-click-3-494029.mp3',
       );
-      await soLoud.play(_transitionSfxSource!, volume: 0.3);
+      soLoud.play(_transitionSfxSource!, volume: 0.3);
     } catch (e) {
       debugPrint("Transition SFX Error: $e");
     }
@@ -1246,7 +1246,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
       _successSfxSource ??= await soLoud.loadAsset(
         'assets/sfx/36505577-smooth-completed-notify-274735.mp3',
       );
-      await soLoud.play(_successSfxSource!, volume: 0.5);
+      soLoud.play(_successSfxSource!, volume: 0.5);
     } catch (e) {
       debugPrint("Success SFX Error: $e");
     }
