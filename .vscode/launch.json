@@ -4,23 +4,75 @@
     // For more informaWtion, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
         {
             "name": "sqzd",
             "request": "launch",
-            "type": "dart"
+            "type": "dart",
+            "args": [
+                "--flavor",
+                "production",
+                "-t",
+                "lib/main.dart"
+            ]
         },
         {
             "name": "sqzd (profile mode)",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "profile"
+            "flutterMode": "profile",
+            "args": [
+                "--flavor",
+                "production",
+                "-t",
+                "lib/main.dart"
+            ]
         },
         {
             "name": "sqzd (release mode)",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "release"
-        }
+            "flutterMode": "release",
+            "args": [
+                "--flavor",
+                "production",
+                "-t",
+                "lib/main.dart"
+            ]
+        },
+        {
+            "name": "sqzd staging",
+            "request": "launch",
+            "type": "dart",
+            "args": [
+                "--flavor",
+                "staging",
+                "-t",
+                "lib/main.dart"
+            ]
+        },
+        {
+            "name": "sqzd staging (profile mode)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "args": [
+                "--flavor",
+                "staging",
+                "-t",
+                "lib/main.dart"
+            ]
+        },
+        {
+            "name": "sqzd staging (release mode)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release",
+            "args": [
+                "--flavor",
+                "staging",
+                "-t",
+                "lib/main.dart"
+            ]
+        },
     ]
 }
