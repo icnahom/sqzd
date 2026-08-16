@@ -1364,9 +1364,6 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
           }
         }
 
-        final minSec = segments.length > 1 ? segment.start : 0;
-        final maxSec = segments.length > 1 ? segment.end : totalSeconds;
-
         try {
           final response = await retry(
             () async {
@@ -1428,15 +1425,11 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
                                 "type": "NUMBER",
                                 "description":
                                     "Start time of the highlight clip in seconds.",
-                                "minimum": minSec,
-                                "maximum": maxSec,
                               },
                               "end": {
                                 "type": "NUMBER",
                                 "description":
                                     "End time in seconds, precisely matching the pause after last_spoken_words.",
-                                "minimum": minSec,
-                                "maximum": maxSec,
                               },
                             },
                             "required": [
@@ -2518,6 +2511,7 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                           );
                         } else {
                           _showErrorSnackbar(
+                            // ignore: use_build_context_synchronously
                             screenContext,
                             "Error: Could not retrieve current URL.",
                           );
