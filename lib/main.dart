@@ -1137,7 +1137,7 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
           "1. Full Timeline Coverage: Ensure selections are drawn from across the entire video.",
         "${segments.length == 1 ? '2' : '1'}. Pacing & Volume: $densityText",
         "${segments.length == 1 ? '3' : '2'}. Trimming: Start precisely at the beginning of the thought. Cut on the natural breath/pause after the point. Never bleed into the next topic.",
-        "${segments.length == 1 ? '4' : '3'}. Purity: Skip teasers,intros, sponsor reads, and filler.",
+        "${segments.length == 1 ? '4' : '3'}. Purity: Skip teasers, intros, sponsor reads, and filler.",
         "${segments.length == 1 ? '5' : '4'}. No Overlaps: ${segments.length == 1 ? 'Ensure no two highlight clips overlap in their timestamps.' : 'Ensure no two highlight clips generated in this response overlap with each other.'}",
       ].join('\n');
 
@@ -2302,10 +2302,9 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                             forceRegenerate: forceRegenerate,
                             onError: (msg) => _showErrorSnackbar(
                               msg,
-                              onRetry: () => state.generateHighlights(
-                                url.toString(),
+                              onRetry: () => _showGenerateSheet(
+                                context,
                                 forceRegenerate: forceRegenerate,
-                                onError: _showErrorSnackbar,
                               ),
                             ),
                           );
