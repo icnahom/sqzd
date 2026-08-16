@@ -35,7 +35,7 @@ jobs:
 
       - name: Build iOS App (Unsigned for AltStore)
         run: |
-          flutter build ios --release --no-codesign --flavor production
+          flutter build ios --release --no-codesign
           mkdir -p Payload
           mv build/ios/iphoneos/Runner.app Payload/
           zip -qq -r app.ipa Payload
