@@ -470,6 +470,24 @@ class AppState extends ChangeNotifier {
     return matched.isNotEmpty ? matched.last : models.firstOrNull;
   }
 
+  /// Agentic video processing is only offered by models newer than "Gemini 3.6 Flash" and "Gemini 3.5 Flash-Lite".
+  static bool supportsAgenticMediaProcessing(String? model) {
+    final match = RegExp(
+      r'^gemini-(\d+)(?:\.(\d+))?',
+      caseSensitive: false,
+    ).firstMatch(model ?? '');
+
+    if (match == null) return false;
+
+    final major = int.parse(match[1]!);
+    final minor = int.parse(match[2] ?? '0');
+
+    final isLite = model!.toLowerCase().contains('flash-lite');
+    final (reqMajor, reqMinor) = isLite ? (3, 5) : (3, 6);
+
+    return major > reqMajor || (major == reqMajor && minor >= reqMinor);
+  }
+
   Future<void> fetchGeminiModels() async {
     if (geminiApiKey == null || geminiApiKey!.isEmpty) return;
 
@@ -1330,14 +1348,20 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
       final maxSeconds = const Duration(hours: 1, minutes: 20).inSeconds;
       final overlapSeconds = const Duration(minutes: 5).inSeconds;
 
-      final segments = [
-        for (
-          int s = 0, e = 0;
-          s < totalSeconds;
-          s = e < totalSeconds ? e - overlapSeconds : totalSeconds
-        )
-          (start: s, end: e = math.min(s + maxSeconds, totalSeconds)),
-      ];
+      // Agentic processing analyzes the whole video in a single pass and
+      // does not support explicit segmentation offsets.
+      final isAgentic = supportsAgenticMediaProcessing(selectedModel);
+
+      final segments = isAgentic
+          ? [(start: 0, end: totalSeconds)]
+          : [
+              for (
+                int s = 0, e = 0;
+                s < totalSeconds;
+                s = e < totalSeconds ? e - overlapSeconds : totalSeconds
+              )
+                (start: s, end: e = math.min(s + maxSeconds, totalSeconds)),
+            ];
 
       final rules = [
         if (segments.length == 1)
@@ -1391,7 +1415,11 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
                             "fileUri":
                                 'https://www.youtube.com/watch?v=$videoId',
                           },
-                          if (segments.length > 1)
+                          // Agentic processing analyzes the whole video, so
+                          // explicit segmentation offsets are not allowed.
+                          if (supportsAgenticMediaProcessing(selectedModel))
+                            "mediaProcessing": "AGENTIC"
+                          else if (segments.length > 1)
                             "videoMetadata": {
                               "startOffset": {"seconds": segment.start},
                               "endOffset": {"seconds": segment.end},
@@ -1472,10 +1500,19 @@ Podcast style. Fast, slightly overlapping pacing. Tone is energetic, conversatio
           );
 
           final parsed = switch (jsonDecode(response.body)) {
-            {'candidates': [{'content': {'parts': [{'text': String text}]}}]} =>
-              jsonDecode(text),
+            {
+              'candidates': [
+                {'content': {'parts': [{'text': String text}, ...]}},
+              ],
+            } ||
+            {
+              'candidates': [
+                {'content': {'parts': [..., {'text': String text}]}},
+              ],
+            } => jsonDecode(text),
+
             _ => throw Exception(
-              "Could not find generated highlights text in API response.",
+              'Could not find generated highlights text in API response.',
             ),
           };
 
@@ -2510,7 +2547,6 @@ class _YouTubeBrowserScreenState extends State<YouTubeBrowserScreen>
                       onPressed: () async {
                         final navigator = Navigator.of(ctx);
                         final url = await state.webViewController?.getUrl();
-                        if (!ctx.mounted) return;
 
                         if (url != null) {
                           navigator.pop();
