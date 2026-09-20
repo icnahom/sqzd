@@ -2,80 +2,32 @@
 
 import 'dart:io';
 
-import 'package:archive/archive_io.dart';
-import 'package:native_assets_cli/native_assets_cli.dart';
+import 'package:hooks/hooks.dart';
 
-void main(List<String> args) async {
-  await build(args, (config, output) async {
-    final assetDir = Directory('assets/models/vits-inflect-en-nano-v2');
+/// Build hook.
+///
+/// Downloads the VITS model archive at build time so it ships with the app
+/// as an asset (declared in `pubspec.yaml`). The app extracts it on-device at
+/// runtime (see `_initVitsModel` in `lib/main.dart`).
+Future<void> main(List<String> args) async {
+  await build(args, (input, output) async {
+    final archiveFile = File.fromUri(input.packageRoot.resolve('assets/models/vits-inflect-en-nano-v2.tar.bz2'));
 
-    if (!assetDir.existsSync()) {
-      assetDir.createSync(recursive: true);
-
-      final modelUrl = Uri.parse(
-        'https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-inflect-en-nano-v2.tar.bz2',
-      );
-      final modelTarFile = File(
-        'assets/models/vits-inflect-en-nano-v2-model.tar.bz2',
-      );
-
-      modelTarFile.parent.createSync(recursive: true);
-      final request = await HttpClient().getUrl(modelUrl);
+    // Once-check: only download if the archive isn't already present.
+    if (!archiveFile.existsSync() || archiveFile.lengthSync() == 0) {
+      final request = await HttpClient().getUrl(Uri.parse('https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-inflect-en-nano-v2.tar.bz2'));
       final response = await request.close();
-      await response.pipe(modelTarFile.openWrite());
-
-      final bytes = modelTarFile.readAsBytesSync();
-      final tarBytes = BZip2Decoder().decodeBytes(bytes);
-      final archive = TarDecoder().decodeBytes(tarBytes);
-
-      // Detect + strip the archive's single top-level directory.
-      final topLevelDirs = <String>{};
-      for (final file in archive.where((f) => f.isFile)) {
-        final parts = file.name.split('/').where((p) => p.isNotEmpty).toList();
-        if (parts.length > 1) topLevelDirs.add(parts.first);
+      if (response.statusCode != 200) {
+        throw HttpException(
+          'Failed to download VITS model: HTTP ${response.statusCode}',
+        );
       }
-      final hasTopLevel = topLevelDirs.length == 1;
-
-      final fileList = <String>[];
-      final espeakArchive = Archive();
-
-      for (final file in archive.where((f) => f.isFile)) {
-        final parts = file.name.split('/').where((p) => p.isNotEmpty).toList();
-        if (parts.isEmpty) continue;
-
-        final relParts = hasTopLevel ? parts.skip(1).toList() : parts;
-        final relPath = relParts.join('/');
-        if (relPath.isEmpty || relPath.split('/').last.startsWith('.')) {
-          continue;
-        }
-
-        if (relPath.startsWith('espeak-ng-data/')) {
-          espeakArchive.addFile(
-            ArchiveFile(relPath, file.size, file.content as List<int>),
-          );
-          continue;
-        }
-
-        final outFile = File('${assetDir.path}/$relPath');
-        outFile.parent.createSync(recursive: true);
-        outFile.writeAsBytesSync(file.content as List<int>);
-        fileList.add(relPath);
-      }
-
-      if (espeakArchive.isNotEmpty) {
-        final tar = TarEncoder().encode(espeakArchive);
-        final gz = GZipEncoder().encode(tar);
-        File('${assetDir.path}/espeak-ng-data.tar.gz').writeAsBytesSync(gz);
-        fileList.add('espeak-ng-data.tar.gz');
-      }
-
-      fileList.sort();
-      File(
-        '${assetDir.path}/filelist.txt',
-      ).writeAsStringSync('${fileList.join('\n')}\n');
-
-      modelTarFile.deleteSync();
-      print('[Build Hook] VITS model ready');
+      archiveFile.parent.createSync(recursive: true);
+      await response.pipe(archiveFile.openWrite());
+      print('[Build Hook] VITS model archive downloaded');
     }
+
+    // Re-run the hook if the archive file changes.
+    output.dependencies.add(archiveFile.uri);
   });
 }

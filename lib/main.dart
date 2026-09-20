@@ -778,31 +778,14 @@ class AppState extends ChangeNotifier {
       final docDir = await getApplicationDocumentsDirectory();
       final modelDir = Directory('${docDir.path}/vits-inflect-en-nano-v2');
 
+      // Once-check: only extract if the model isn't present yet.
       if (!modelDir.existsSync() ||
           !File('${modelDir.path}/model.onnx').existsSync()) {
         modelDir.createSync(recursive: true);
-
-        final manifest = await rootBundle.loadString(
-          'assets/models/vits-inflect-en-nano-v2/filelist.txt',
-        );
-        final files = manifest
-            .split('\n')
-            .map((f) => f.trim())
-            .where((f) => f.isNotEmpty);
-
-        for (final relPath in files) {
-          final byteData = await rootBundle.load(
-            'assets/models/vits-inflect-en-nano-v2/$relPath',
-          );
-
-          if (relPath == 'espeak-ng-data.tar.gz') {
-            await _extractEspeakData(byteData.buffer.asUint8List(), modelDir);
-            continue;
-          }
-
-          final file = File('${modelDir.path}/$relPath');
-          await file.parent.create(recursive: true);
-          await file.writeAsBytes(byteData.buffer.asUint8List());
+        await _extractVitsModel(modelDir);
+        // Guard against an empty result so we don't leave a half-ready dir.
+        if (!File('${modelDir.path}/model.onnx').existsSync()) {
+          throw StateError('VITS model extraction did not produce model.onnx');
         }
       }
 
@@ -814,13 +797,38 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> _extractEspeakData(Uint8List gzBytes, Directory modelDir) async {
-    final tarBytes = GZipDecoder().decodeBytes(gzBytes);
+  Future<void> _extractVitsModel(Directory modelDir) async {
+    final byteData = await rootBundle.load(
+      'assets/models/vits-inflect-en-nano-v2.tar.bz2',
+    );
+    final bytes = byteData.buffer.asUint8List(
+      byteData.offsetInBytes,
+      byteData.lengthInBytes,
+    );
+
+    final tarBytes = BZip2Decoder().decodeBytes(bytes);
     final archive = TarDecoder().decodeBytes(tarBytes);
 
-    for (final file in archive) {
-      if (!file.isFile) continue;
-      final outFile = File('${modelDir.path}/${file.name}');
+    // The archive carries a single top-level directory; strip it so the
+    // files land directly in modelDir (model.onnx, tokens.txt, espeak-ng-data/).
+    final topLevelDirs = <String>{};
+    for (final file in archive.where((f) => f.isFile)) {
+      final parts = file.name.split('/').where((p) => p.isNotEmpty).toList();
+      if (parts.length > 1) topLevelDirs.add(parts.first);
+    }
+    final hasTopLevel = topLevelDirs.length == 1;
+
+    for (final file in archive.where((f) => f.isFile)) {
+      final parts = file.name.split('/').where((p) => p.isNotEmpty).toList();
+      if (parts.isEmpty) continue;
+
+      final relParts = hasTopLevel ? parts.skip(1).toList() : parts;
+      final relPath = relParts.join('/');
+      if (relPath.isEmpty || relPath.split('/').last.startsWith('.')) {
+        continue;
+      }
+
+      final outFile = File('${modelDir.path}/$relPath');
       await outFile.parent.create(recursive: true);
       await outFile.writeAsBytes(file.content as List<int>);
     }

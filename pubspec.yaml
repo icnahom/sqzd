@@ -26,7 +26,7 @@ dependencies:
   retry: ^3.1.2
   sherpa_onnx: ^1.13.5
   archive: ^4.0.9
-  native_assets_cli: ^0.18.0
+  hooks: ^2.2.0
 
 dev_dependencies:
   flutter_test:
@@ -37,4 +37,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/sfx/
-    - assets/models/vits-inflect-en-nano-v2/
+    - assets/models/
