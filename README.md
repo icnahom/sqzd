@@ -74,7 +74,7 @@ flutter run --profile
 We do not use unofficial web-scraping tricks to fetch video transcripts. Instead, we use the official [Gemini Video Understanding API](https://ai.google.dev/gemini-api/docs/video-understanding#youtube).
 
 > [!NOTE]
-> Because the AI model analyzes the video content directly, initial generation can take some time. With agentic processing — available on **Gemini 3.5 Flash-Lite**, **Gemini 3.6 Flash**, and newer models — the model reads the transcript first instead of ingesting raw video, making generation noticeably faster.
+> Because the AI model analyzes the video content directly, initial generation can take some time. With `agentic` processing however — available on **Gemini 3.5 Flash-Lite**, **Gemini 3.6 Flash**, and newer models — the model reads the transcript first instead of ingesting raw video, making generation noticeably faster.
 
 ## 📁 Why a single `main.dart`?
 
